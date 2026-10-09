@@ -51,6 +51,7 @@ export interface Message {
   value: Json;
 }
 export interface Operation {
+  test_fixture_only?: boolean;
   schema: "gonka24/forward-operation/1";
   deployment: Deployment;
   sender: string;

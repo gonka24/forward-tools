@@ -20,7 +20,7 @@ try{
   const d=JSON.parse(readFileSync('deployments/mainnet-v1.json','utf8'));d.chainId='synthetic-signing-chain';
   const op={schema:'gonka24/forward-operation/1',deployment:d,sender:owner,action:'lock',input:{},messages:[{typeUrl:'/cosmwasm.wasm.v1.MsgExecuteContract',value:{sender:owner,contract:d.factory,msg:{lock:{}},funds:[]}}],terms:{},checkedAt:'synthetic',checkedHeight:'1'};
   const u={schema:'gonka24/forward-unsigned/1',operation:op,publicKey:pub,accountNumber:'1',sequence:'0',gas:'1000000',fee:'1000000'};u.tx=txJson(op,u.sequence,pub,u.gas,u.fee);
-  const messages=[op.messages[0],{typeUrl:ROUTE,value:{creator:owner,entries:[{epoch:'11',recipient:d.factory}]}},{typeUrl:CLAIM,value:{creator:owner,seed:'7',epoch_index:'11'}}];
+  const messages=[op.messages[0],{typeUrl:ROUTE,value:{creator:owner,entries:[{epoch:'11',recipient:d.factory}]}},{typeUrl:CLAIM,value:{creator:owner,seed:'7',epoch_index:'11'}},{typeUrl:ROUTE,value:{creator:owner,entries:[{epoch:'11',recipient:''}]}},{typeUrl:CLAIM,value:{creator:owner,seed:'0',epoch_index:'11'}}];
   for(let index=0;index<messages.length;index++){
     u.operation.messages=[messages[index]];u.tx=txJson(u.operation,u.sequence,pub,u.gas,u.fee);
     const input=join(home,`unsigned-${index}.json`),output=join(home,`signed-${index}.json`);writeFileSync(input,JSON.stringify(u.tx));

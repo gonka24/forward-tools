@@ -1,0 +1,56 @@
+{
+  "test_fixture_only": true,
+  "schema": "gonka24/forward-operation/1",
+  "deployment": {
+    "id": "synthetic-example",
+    "chainId": "synthetic-chain",
+    "nodes": [
+      "http://synthetic.invalid"
+    ],
+    "gonkaSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "contractsSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "factory": "gonka1pc8qurswpc8qurswpc8qurswpc8qurswpc8qurswpc8qurswpc8q4mvs2t",
+    "factoryCodeId": 1,
+    "dealCodeId": 2,
+    "token": "gonka1pc8qurswpc8qurswpc8qurswpc8qurswpc8qurswpc8qurswpc8q4mvs2t",
+    "feeRecipient": "gonka1p5xs6rgdp5xs6rgdp5xs6rgdp5xs6rgdu6j393",
+    "factoryHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "dealHash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "tokenHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "feeBps": 150,
+    "protoSha": "ffffffffffffffffffffffffffffffffffffffff",
+    "evidence": "synthetic"
+  },
+  "sender": "gonka1p5xs6rgdp5xs6rgdp5xs6rgdp5xs6rgdu6j393",
+  "action": "create-offer",
+  "input": {
+    "epoch": 11,
+    "price": "1000000",
+    "budget": "10000000"
+  },
+  "messages": [
+    {
+      "typeUrl": "/cosmwasm.wasm.v1.MsgExecuteContract",
+      "value": {
+        "sender": "gonka1p5xs6rgdp5xs6rgdp5xs6rgdp5xs6rgdu6j393",
+        "contract": "gonka1pc8qurswpc8qurswpc8qurswpc8qurswpc8qurswpc8qurswpc8q4mvs2t",
+        "msg": {
+          "create_offer": {
+            "target_epoch": 11,
+            "price_micro_usdt_per_gnk": "1000000",
+            "buyer_budget_micro_usdt": "10000000"
+          }
+        },
+        "funds": []
+      }
+    }
+  ],
+  "terms": {
+    "host": "gonka1p5xs6rgdp5xs6rgdp5xs6rgdp5xs6rgdu6j393",
+    "target_epoch": 11,
+    "price_micro_usdt_per_gnk": "1000000",
+    "buyer_budget_micro_usdt": "10000000"
+  },
+  "checkedAt": "2000-01-01T00:00:00Z",
+  "checkedHeight": "100"
+}

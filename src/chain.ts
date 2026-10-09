@@ -218,14 +218,27 @@ export class Chain {
       "Participant identity missing or mismatched",
     );
     requireFact(
-      p.status === "ACTIVE" &&
-        Number.isFinite(Number(p.weight)) &&
-        Number(p.weight) >= 0 &&
-        typeof p.inference_url === "string" &&
-        /^https?:\/\//.test(p.inference_url),
+      p.status === "ACTIVE",
       "HOST_NOT_COMPUTE_PARTICIPANT",
-      "Account exists but active compute participant is not established (developer accounts are not hosts)",
+      "Participant is not currently active",
     );
+    // weight is a legacy sentinel (-1 even for live compute hosts in this runtime).
+    // An ordinary developer row is distinguished by registered hardware, not weight.
+    const hardware = (await this.api(NATIVE + `hardware_nodes/${host}`)).nodes;
+    requireFact(
+      hardware?.participant === host &&
+        Array.isArray(hardware.hardware_nodes) &&
+        hardware.hardware_nodes.some(
+          (n: any) =>
+            typeof n.host === "string" &&
+            n.host.length > 0 &&
+            Array.isArray(n.models) &&
+            n.models.length > 0,
+        ),
+      "HOST_COMPUTE_UNVERIFIED",
+      "Registered compute hardware for this participant was not established",
+    );
+    p.hardware = hardware;
     return p;
   }
   async balance(a: string) {

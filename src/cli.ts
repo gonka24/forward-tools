@@ -3,7 +3,8 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline/promises";
-import { Chain, same } from "./chain.js";
+import { Chain, same, hash } from "./chain.js";
+import { fromBase64 } from "@cosmjs/encoding";
 import {
   ToolError,
   requireFact,
@@ -23,6 +24,7 @@ import {
 } from "./transactions.js";
 import { InferencedAdapter } from "./adapters/inferenced.js";
 import { readiness } from "./readiness.js";
+import { updateReceipt } from "./files.js";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const args = process.argv.slice(2),
   group = args.shift(),
@@ -167,6 +169,43 @@ async function main() {
     return;
   }
   parse();
+  const allowed = new Set([
+    "deployment",
+    "deployment-file",
+    "json",
+    "host",
+    "signer",
+    "out",
+    "deal",
+    "action",
+    "sender",
+    "epoch",
+    "price",
+    "budget",
+    "role",
+    "seed",
+    "emergency",
+    "operation",
+    "public-key",
+    "max-fee",
+    "unsigned",
+    "adapter",
+    "cli",
+    "key",
+    "home",
+    "backend",
+    "signed-tx",
+    "signed",
+    "receipt",
+    "confirm",
+    "timeout-seconds",
+    "signing-proofs",
+  ]);
+  for (const [k, v] of Object.entries(opts)) {
+    requireFact(allowed.has(k), "USAGE", `Unknown --${k}`);
+    if (["json", "emergency", "confirm"].includes(k))
+      requireFact(v === true, "USAGE", `--${k} is a standalone flag`);
+  }
   const deployment: Deployment = await load(
     str("deployment-file", false) ??
       join(
@@ -212,7 +251,7 @@ async function main() {
     if (opts.epoch) input.epoch = Number(str("epoch"));
     if (opts.price) input.price = decimal(str("price")!);
     if (opts.budget) input.budget = decimal(str("budget")!);
-    if (opts.emergency) input.emergency = true;
+    if (opts.emergency === true) input.emergency = true;
     result = await prepare(c, str("action") as any, str("sender")!, input);
     requireFact(opts.out, "USAGE", "--out required");
   } else if (group === "tx" && command === "export") {
@@ -279,10 +318,18 @@ async function main() {
     const p = str("receipt")!;
     await save(p, { status: "PREPARING" });
     result = await broadcast(c, s, async (r) => {
-      await writeFile(p, JSON.stringify(r, null, 2) + "\n");
+      await updateReceipt(p, r);
     });
   } else if (group === "tx" && command === "confirm") {
     const r = await load(str("receipt")!);
+    requireFact(
+      r.signed &&
+        same(r.signed.unsigned.operation, r.operation) &&
+        hash(fromBase64(r.signed.txRaw)).toUpperCase() === r.txHash,
+      "RECEIPT_BINDING",
+      "Receipt operation and signed transaction hash must match",
+    );
+    await verifySigned(r.signed.unsigned, r.signed.txRaw);
     requireFact(
       same(r.operation?.deployment, deployment),
       "DEPLOYMENT_MISMATCH",
@@ -310,6 +357,8 @@ async function main() {
     });
     if (result.status !== "READY") process.exitCode = 1;
   } else throw new ToolError("USAGE", "Unknown command; run forward help", 2);
+  if (result?.status === "INCOMPLETE" || result?.status === "FAILED")
+    process.exitCode = 1;
   if (opts.out) await save(str("out")!, result);
   print(result);
 }

@@ -127,6 +127,23 @@ test("native protobuf bytes match independently specified golden wire fields", (
   );
   assert.deepEqual(decodeNative(CLAIM, encodeNative(CLAIM, q)), q);
 });
+test("native protobuf omits proto3 default fields exactly as the Gonka CLI", () => {
+  assert.equal(
+    Buffer.from(
+      encodeNative(ROUTE, {
+        creator: "x",
+        entries: [{ epoch: "42", recipient: "" }],
+      }),
+    ).toString("hex"),
+    "0a01781202082a",
+  );
+  assert.equal(
+    Buffer.from(
+      encodeNative(CLAIM, { creator: "x", seed: "0", epoch_index: "42" }),
+    ).toString("hex"),
+    "0a0178182a",
+  );
+});
 for (const action of ["route", "remove-route"] as const)
   test(`${action} changes only target epoch and retains snapshot of other routes`, async () => {
     const { c } = fixture();
@@ -145,6 +162,20 @@ test("funding uses authenticated CW20 Send exact budget and Fund hook", async ()
   assert.deepEqual(op.messages[0].value.msg, {
     send: { contract: D, amount: "100000000", msg: "eyJmdW5kIjp7fX0=" },
   });
+});
+test("funding rejects ignored amount overrides rather than silently signing immutable budget", async () => {
+  const { c } = fixture();
+  await assert.rejects(
+    prepare(c, "fund", B, { deal: D, budget: "1" }),
+    /Unexpected fields/,
+  );
+});
+test("refund does not interpret string false as explicit emergency authorization", async () => {
+  const { c } = fixture("locked", 13);
+  await assert.rejects(
+    prepare(c, "refund", B, { deal: D, emergency: "false" }),
+    /explicit boolean/,
+  );
 });
 for (const [action, state, current, extra] of [
   ["lock", "funded", 10, {}],
@@ -213,6 +244,18 @@ test("revalidation rejects operation message substitution", async () => {
   const op = await prepare(c, "fund", B, { deal: D });
   op.messages[0].value.msg.send.amount = "1";
   await assert.rejects(revalidate(c, op), /changed/);
+});
+test("revalidation rejects altered displayed immutable commercial terms", async () => {
+  const { c } = fixture();
+  const op = await prepare(c, "fund", B, { deal: D });
+  op.terms.price_micro_usdt_per_gnk = "1";
+  await assert.rejects(revalidate(c, op), /Displayed immutable terms/);
+});
+test("example packages cannot authorize a live transaction even with valid shape", async () => {
+  const { c } = fixture();
+  const op = await prepare(c, "fund", B, { deal: D });
+  op.test_fixture_only = true;
+  await assert.rejects(revalidate(c, op), /Example\/test/);
 });
 test("signature binds messages fee chain account sender and sequence", async () => {
   const wallet = await DirectSecp256k1Wallet.fromKey(

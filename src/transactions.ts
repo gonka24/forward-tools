@@ -281,6 +281,7 @@ export async function broadcast(
     txHash,
     fromHeight,
     operation: s.unsigned.operation,
+    signed: s,
   };
   // Persist identity before submitting, including when HTTP fails after the node accepted the bytes.
   await save(receipt);
@@ -332,7 +333,7 @@ export async function confirm(
   );
   while (Date.now() < deadline) {
     const tip = BigInt(await c.tip());
-    while (height <= tip) {
+    while (height <= tip && Date.now() < deadline) {
       requireFact(
         height - start < BigInt(maxBlocks),
         "SCAN_LIMIT",

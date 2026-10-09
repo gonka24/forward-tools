@@ -2,14 +2,15 @@
 
 This document is updated with executed checks before the first release.
 
-- Offline unit tests: 51 passed on Windows Node 24.13.0. Platform CI passed for
+- Offline unit tests: 54 passed on Windows Node 24.13.0. Platform CI passed for
   the preceding c4d817b revision; the final revision is checked again before release.
 - Mainnet read-only verification: passed on both configured nodes at height 6475628.
   Factory/deal/token binaries, no-admin Factory policy, metadata and runtime matched.
 - Full CLI local Gonka positive settlement and refund: pending.
 - inferenced signing adapter: offline encrypted-file keyring rehearsal passed
   with the pinned release CLI for MsgExecuteContract, MsgSetClaimRecipients and
-  MsgClaimRewards; generated synthetic fixture keyring deleted. No user wallet
+  MsgClaimRewards, including empty recipient and zero seed default-field cases;
+  generated synthetic fixture keyring deleted. No user wallet
   or network was used. Actual local-chain execution remains pending below.
 - Clean-environment handoff rehearsal: passed from a fresh public Git clone:
   npm ci, build, tests, doctor and two-node mainnet preflight. Actual host identity,

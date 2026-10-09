@@ -1,20 +1,20 @@
 import protobuf from "protobufjs/minimal.js";
-import { requireFact, signed64 } from "./model.js";
+import { requireFact, signed64, integer } from "./model.js";
 const { Writer, Reader } = protobuf;
 // Wire fields are pinned to Gonka 136041..., see provenance/tx.proto.
 export const ROUTE = "/inference.inference.MsgSetClaimRecipients";
 export const CLAIM = "/inference.inference.MsgClaimRewards";
 export function encodeNative(type: string, value: any): Uint8Array {
-  const w = Writer.create().uint32(10).string(value.creator);
+  const w = Writer.create();
+  if (value.creator) w.uint32(10).string(value.creator);
   if (type === ROUTE) {
-    for (const e of value.entries)
-      w.uint32(18)
-        .fork()
-        .uint32(8)
-        .uint64(e.epoch)
-        .uint32(18)
-        .string(e.recipient)
-        .ldelim();
+    for (const e of value.entries) {
+      integer(e.epoch, "routing epoch", (1n << 64n) - 1n);
+      w.uint32(18).fork();
+      if (e.epoch !== "0") w.uint32(8).uint64(e.epoch);
+      if (e.recipient) w.uint32(18).string(e.recipient);
+      w.ldelim();
+    }
   } else {
     requireFact(
       type === CLAIM,
@@ -22,7 +22,9 @@ export function encodeNative(type: string, value: any): Uint8Array {
       "Unknown native message",
     );
     signed64(value.seed);
-    w.uint32(16).int64(value.seed).uint32(24).uint64(value.epoch_index);
+    integer(value.epoch_index, "claim epoch", (1n << 64n) - 1n);
+    if (value.seed !== "0") w.uint32(16).int64(value.seed);
+    if (value.epoch_index !== "0") w.uint32(24).uint64(value.epoch_index);
   }
   return w.finish();
 }

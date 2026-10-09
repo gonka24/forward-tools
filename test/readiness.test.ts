@@ -156,17 +156,23 @@ test("developer participant row does not establish a compute host", async () => 
       inference_url: "",
     },
   }));
-  await assert.rejects(c.host(a), /developer accounts/);
+  await assert.rejects(c.host(a), /Registered compute hardware/);
 });
 test("active registered compute host identity is accepted without claiming future earnings", async () => {
   const c = new Chain(d, async () => ({
     participant: {
       index: a,
       address: a,
-      weight: 0,
+      weight: -1,
       status: "ACTIVE",
       inference_url: "http://synthetic.invalid",
     },
+    nodes: {
+      participant: a,
+      hardware_nodes: [
+        { host: "synthetic.invalid", models: ["synthetic-model"] },
+      ],
+    },
   }));
-  assert.equal((await c.host(a)).weight, 0);
+  assert.equal((await c.host(a)).weight, -1);
 });

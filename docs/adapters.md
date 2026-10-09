@@ -1,6 +1,9 @@
 # Signing adapters and external transactions
 
 The operation envelope describes intent. It is not a wallet-specific import file.
+The package root exports the browser-reusable core; the `/inferenced` subpath
+exports the Node-specific optional signing adapter. `getAddress()` reads only the
+public signer identity, and `capabilities` declares formats and type URLs.
 `exportTx` builds a Cosmos transaction with fresh account number, sequence,
 simulated gas and exact fee. It works without a wallet executable.
 

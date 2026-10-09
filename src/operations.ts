@@ -23,6 +23,33 @@ export async function prepare(
   input: any,
 ): Promise<Operation> {
   requireFact(ACTIONS.includes(action), "INVALID_ACTION", "Unknown operation");
+  const fields: Record<Action, string[]> = {
+    "create-offer": ["epoch", "price", "budget"],
+    route: ["deal"],
+    "remove-route": ["deal"],
+    fund: ["deal"],
+    lock: ["deal"],
+    claim: ["deal", "seed"],
+    settle: ["deal"],
+    withdraw: ["deal", "role"],
+    release: ["deal"],
+    refund: ["deal", "emergency"],
+    cancel: ["deal"],
+    "forward-excess": ["deal"],
+  };
+  requireFact(
+    input &&
+      typeof input === "object" &&
+      !Array.isArray(input) &&
+      Object.keys(input).every((k) => fields[action].includes(k)),
+    "INVALID_OPERATION_INPUT",
+    "Unexpected fields for this action; amounts for funding come from verified immutable Deal terms",
+  );
+  requireFact(
+    input.emergency === undefined || typeof input.emergency === "boolean",
+    "INVALID_OPERATION_INPUT",
+    "Emergency review must be explicit boolean",
+  );
   address(sender);
   await c.verify();
   const height = await c.tip(),
@@ -295,6 +322,11 @@ export async function prepare(
 }
 export async function revalidate(c: Chain, op: Operation) {
   requireFact(
+    op.test_fixture_only !== true,
+    "TEST_FIXTURE",
+    "Example/test packages cannot authorize live transactions",
+  );
+  requireFact(
     op.schema === "gonka24/forward-operation/1" &&
       same(op.deployment, c.deployment),
     "INVALID_OPERATION",
@@ -305,6 +337,23 @@ export async function revalidate(c: Chain, op: Operation) {
     same(fresh.messages, op.messages),
     "OPERATION_CHANGED",
     "Operation messages changed",
+  );
+  const immutable = (terms: any) =>
+    Object.fromEntries(
+      Object.entries(terms).filter(
+        ([key]) =>
+          ![
+            "beforeState",
+            "previousRoutes",
+            "summaryError",
+            "emergencyReview",
+          ].includes(key),
+      ),
+    );
+  requireFact(
+    same(immutable(fresh.terms), immutable(op.terms)),
+    "OPERATION_TERMS_CHANGED",
+    "Displayed immutable terms differ from current verified operation",
   );
   return fresh;
 }
@@ -344,6 +393,7 @@ export async function status(c: Chain, a: string) {
   }
   return {
     ...deal,
+    status: native?.status === "UNAVAILABLE" ? "INCOMPLETE" : "OBSERVED",
     currentEpoch: current,
     lockDeadlineExclusive: E + 5,
     claimEpoch: E + 1,
