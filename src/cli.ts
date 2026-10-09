@@ -66,7 +66,7 @@ deployment verify --deployment mainnet-v1
 host check --host ADDRESS [--signer ADDRESS] [--out REPORT]
 deal prepare --action ACTION --sender ADDRESS [--deal ADDRESS] [--epoch N --price USDT_PER_GNK --budget USDT] [--role host|fee|buyer] [--seed INTEGER] [--emergency] --out OPERATION
 deal status --deal ADDRESS
-tx export --operation FILE [--public-key BASE64] [--max-fee NGONKA] --out UNSIGNED
+tx export --operation FILE [--public-key BASE64] [--max-fee NGONKA] [--claim-gas EXPLICIT_LIMIT] --out UNSIGNED
 tx sign --unsigned FILE --adapter inferenced --cli PATH --key NAME --home DIR --backend os|file --out SIGNED
 tx import --unsigned FILE --signed-tx FILE --out SIGNED
 tx broadcast --signed FILE --receipt FILE --confirm
@@ -123,6 +123,7 @@ async function main() {
     "operation",
     "public-key",
     "max-fee",
+    "claim-gas",
     "unsigned",
     "adapter",
     "cli",
@@ -195,6 +196,7 @@ async function main() {
       await load(str("operation")!),
       str("public-key", false),
       str("max-fee", false),
+      str("claim-gas", false),
     );
     requireFact(opts.out, "USAGE", "--out required");
   } else if (group === "tx" && command === "sign") {
@@ -207,7 +209,12 @@ async function main() {
     await checkFresh(c, u);
     console.error(
       JSON.stringify(
-        { operation: u.operation, feeNgonka: u.fee, gas: u.gas },
+        {
+          operation: u.operation,
+          feeNgonka: u.fee,
+          gas: u.gas,
+          gasReview: u.gasReview,
+        },
         null,
         2,
       ),
@@ -247,7 +254,11 @@ async function main() {
     );
     console.error(
       JSON.stringify(
-        { operation: s.unsigned.operation, feeNgonka: s.unsigned.fee },
+        {
+          operation: s.unsigned.operation,
+          feeNgonka: s.unsigned.fee,
+          gasReview: s.unsigned.gasReview,
+        },
         null,
         2,
       ),

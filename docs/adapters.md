@@ -5,7 +5,9 @@ The package root exports the browser-reusable core; the `/inferenced` subpath
 exports the Node-specific optional signing adapter. `getAddress()` reads only the
 public signer identity, and `capabilities` declares formats and type URLs.
 `exportTx` builds a Cosmos transaction with fresh account number, sequence,
-simulated gas and exact fee. It works without a wallet executable.
+simulated gas and exact fee. A source-confirmed native claim simulation defect
+requires an explicit owner-selected gas limit and records `gasReview`; it must
+never be labelled successful simulation. It works without a wallet executable.
 
 An adapter implements `SigningAdapter`, declares SIGN_MODE_DIRECT support and
 supported type URLs, and returns a signed transaction.
@@ -23,7 +25,9 @@ Supported wire messages:
 Native encoders are pinned to the deployed Gonka tx.proto. Claim recipient entries
 use uint64 epoch field 1 and string recipient field 2. Claim uses creator field 1,
 int64 seed field 2 and uint64 epoch_index field 3. Seed is a public committed
-integer, not a wallet secret; simulation verifies native eligibility.
+integer, not a wallet secret. Execution verifies native eligibility. The pinned
+claim simulation defect described in README prevents a simulation proof for
+that specific path; signature and other critical checks still apply.
 
 External tools consume `unsigned.tx`; `unsigned.signDoc` also provides direct
 protobuf body/auth bytes as base64, chain ID and account number. Chain ID and account number are in the

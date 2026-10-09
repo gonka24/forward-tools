@@ -81,7 +81,10 @@ def tool_tx(self, container, key, *args, gas):
     backend,password=self.keyring(container)
     public=checked(['docker','exec','-i',container,'inferenced','keys','show',key,'--pubkey','--keyring-backend',backend,'--keyring-dir','/root/.inference'],input_text=password)
     pubkey=json.loads(public)['key']
-    cli('tx','export','--operation',str(op),'--public-key',pubkey,out=u)
+    # The pinned runtime panics only in claim simulation (empty HeaderInfo.Hash).
+    # This disposable fixture explicitly budgets gas; real owners must review it.
+    claim_gas=['--claim-gas','1000000'] if action=='claim' else []
+    cli('tx','export','--operation',str(op),'--public-key',pubkey,*claim_gas,out=u)
     unsigned=json.loads(u.read_text());txfile=Path(str(prefix)+'-cosmos.local.json');txfile.write_text(json.dumps(unsigned['tx']))
     remote='/tmp/tools-unsigned.json';signed_remote='/tmp/tools-signed.json'
     checked(['docker','cp',str(txfile),container+':'+remote]);backend,password=self.keyring(container)

@@ -90,6 +90,11 @@ export interface Unsigned {
   publicKey: string;
   gas: string;
   fee: string;
+  gasReview?: {
+    kind: "pinned-claim-simulation-panic";
+    gasLimit: string;
+    warning: string;
+  };
   signDoc?: {
     bodyBytes: string;
     authInfoBytes: string;

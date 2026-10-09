@@ -406,6 +406,46 @@ test("block scan confirms without transaction index and checks included result",
     await assert.rejects(confirm(c, h, "100", 100));
   }
 });
+test("only the pinned native claim simulation defect accepts an explicit owner gas limit", async () => {
+  const { c } = fixture("locked", 11);
+  c.deployment = {
+    ...deployment,
+    gonkaSha: "136041c81ea8ff38e7620d76af66a7c7fe7eec50",
+  };
+  const wallet = await DirectSecp256k1Wallet.fromKey(
+    new Uint8Array(32).fill(12),
+    "gonka",
+  );
+  const [a] = await wallet.getAccounts();
+  // The host in this fixture is A; the export key must still match the participant.
+  const k = (await c.deal(D)).config;
+  k.host = a.address;
+  c.account = async () => ({ account_number: "2", sequence: "3" });
+  c.balance = async () => "2000000";
+  const op = await prepare(c, "claim", a.address, { deal: D, seed: "7" });
+  let error =
+    "getMustBeValidatedInferences msg_server_claim_rewards.go:461 slice bounds out of range [:8] with capacity 0";
+  c.api = async () => {
+    throw new ToolError("RPC_ERROR", error);
+  };
+  const pub = Buffer.from(a.pubkey).toString("base64");
+  await assert.rejects(exportTx(c, op, pub), /explicit --claim-gas/);
+  const u = await exportTx(c, op, pub, "10000000", "1000000");
+  assert.equal(u.gas, "1000000");
+  assert.equal(u.gasReview?.kind, "pinned-claim-simulation-panic");
+  await checkFresh(c, u);
+  await assert.rejects(exportTx(c, op, pub, "999999", "1000000"), /fee limit/);
+  error = "synthetic RPC outage";
+  await assert.rejects(exportTx(c, op, pub, "10000000", "1000000"), /outage/);
+  error = "claim seed signature invalid";
+  await assert.rejects(
+    exportTx(c, op, pub, "10000000", "1000000"),
+    /seed signature/,
+  );
+  const changed = structuredClone(u);
+  changed.gasReview!.warning = "synthetic false claim of verified eligibility";
+  await assert.rejects(checkFresh(c, changed), /gas review differs/);
+});
 test("missing block result never passes confirmation", async () => {
   const b = Buffer.from("synthetic").toString("base64"),
     c = new Chain(deployment);

@@ -125,6 +125,7 @@ export async function exportTx(
   op: Operation,
   publicKey?: string,
   maxFee = "10000000",
+  claimGas?: string,
 ): Promise<Unsigned> {
   await revalidate(c, op);
   const a = await c.account(op.sender),
@@ -153,11 +154,9 @@ export async function exportTx(
   };
   const raw = wire(u);
   raw.signatures = [new Uint8Array(64)];
-  const sim = await c.api("/cosmos/tx/v1beta1/simulate", {
-    tx_bytes: toBase64(TxRaw.encode(raw).finish()),
-  });
-  const used = integer(sim.gas_info?.gas_used, "simulation gas"),
-    gas = (used * 130n + 99n) / 100n;
+  const estimate = await estimateGas(c, u, raw, claimGas);
+  const gas = estimate.gas;
+  if (estimate.review) u.gasReview = estimate.review;
   requireFact(
     gas > 0n && gas <= integer(maxFee, "max fee"),
     "FEE_LIMIT",
@@ -179,6 +178,58 @@ export async function exportTx(
     accountNumber: u.accountNumber,
   };
   return u;
+}
+const CLAIM_PANIC_WARNING =
+  "Native claim simulation has no header hash in this pinned Gonka runtime. Owner supplied gas limit; native eligibility remains unproven until successful inclusion. A failed transaction may consume gas.";
+async function estimateGas(
+  c: Chain,
+  u: Unsigned,
+  raw: TxRaw,
+  claimGas?: string,
+) {
+  if (claimGas !== undefined)
+    requireFact(
+      u.operation.action === "claim",
+      "INVALID_GAS_REVIEW",
+      "Explicit claim gas is only valid for native claim",
+    );
+  try {
+    const sim = await c.api("/cosmos/tx/v1beta1/simulate", {
+      tx_bytes: toBase64(TxRaw.encode(raw).finish()),
+    });
+    const used = integer(sim.gas_info?.gas_used, "simulation gas");
+    return { gas: (used * 130n + 99n) / 100n };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "";
+    // Only this source-confirmed simulation defect can use an owner-selected limit.
+    // Outages, seed errors and other execution failures stay blocking errors.
+    const known =
+      u.operation.action === "claim" &&
+      c.deployment.gonkaSha === "136041c81ea8ff38e7620d76af66a7c7fe7eec50" &&
+      message.includes("getMustBeValidatedInferences") &&
+      message.includes("msg_server_claim_rewards.go:461") &&
+      message.includes("slice bounds out of range [:8] with capacity 0");
+    if (!known) throw e;
+    requireFact(
+      claimGas !== undefined,
+      "CLAIM_SIMULATION_UNAVAILABLE",
+      "Pinned Gonka native claim simulation panics. Review explicit --claim-gas limit and its gas-loss risk before signing; no transaction was sent.",
+    );
+    const gas = integer(claimGas, "claim gas");
+    requireFact(
+      gas > 0n,
+      "INVALID_GAS_REVIEW",
+      "Positive owner-selected claim gas limit required",
+    );
+    return {
+      gas,
+      review: {
+        kind: "pinned-claim-simulation-panic" as const,
+        gasLimit: gas.toString(),
+        warning: CLAIM_PANIC_WARNING,
+      },
+    };
+  }
 }
 export async function verifySigned(
   u: Unsigned,
@@ -251,11 +302,18 @@ export async function checkFresh(c: Chain, u: Unsigned) {
   );
   const sim = wire(u);
   sim.signatures = [new Uint8Array(64)];
-  const r = await c.api("/cosmos/tx/v1beta1/simulate", {
-    tx_bytes: toBase64(TxRaw.encode(sim).finish()),
-  });
+  if (u.gasReview)
+    requireFact(
+      u.gasReview.kind === "pinned-claim-simulation-panic" &&
+        u.gasReview.gasLimit === u.gas &&
+        u.gasReview.warning === CLAIM_PANIC_WARNING &&
+        u.fee === u.gas,
+      "INVALID_GAS_REVIEW",
+      "Explicit claim gas review differs",
+    );
+  const estimate = await estimateGas(c, u, sim, u.gasReview?.gasLimit);
   requireFact(
-    integer(r.gas_info?.gas_used, "gas used") <= BigInt(u.gas),
+    estimate.gas <= BigInt(u.gas),
     "GAS_CHANGED",
     "Gas estimate changed: export again",
   );
