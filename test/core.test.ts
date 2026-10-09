@@ -13,7 +13,7 @@ import {
   Operation,
 } from "../src/model.js";
 import { ROUTE, CLAIM, encodeNative, decodeNative } from "../src/native.js";
-import { prepare, revalidate } from "../src/operations.js";
+import { prepare, revalidate, status } from "../src/operations.js";
 import {
   wire,
   verifySigned,
@@ -378,6 +378,23 @@ test("broadcast persists identity before submission and height zero never means 
   assert.equal(records.length, 1);
   assert.equal(records[0].status, "SUBMISSION_UNKNOWN");
   assert.equal(submitted, 2);
+});
+
+test("completed state with missing native vesting data is incomplete rather than fully observed", async () => {
+  const { c } = fixture("completed", 12);
+  const baseline = {
+    remaining_vesting_ngonka: "5",
+    liquid_balance_ngonka: "100",
+  };
+  c.smart = async () => baseline;
+  const complete = await status(c, D);
+  assert.equal(complete.status, "OBSERVED");
+  assert.equal(complete.native.remaining_vesting_ngonka, "5");
+  assert.match(complete.note, /end of vesting/);
+  const missing: any = structuredClone(baseline);
+  delete missing.remaining_vesting_ngonka;
+  c.smart = async () => missing;
+  assert.equal((await status(c, D)).status, "INCOMPLETE");
 });
 
 test("block scan confirms without transaction index and checks included result", async () => {

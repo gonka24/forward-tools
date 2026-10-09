@@ -392,6 +392,8 @@ export async function status(c: Chain, a: string) {
   let native: any;
   try {
     native = await c.smart(a, { native_status: {} });
+    integer(native?.remaining_vesting_ngonka, "remaining vesting");
+    integer(native?.liquid_balance_ngonka, "liquid GNK");
   } catch (e) {
     native = {
       status: "UNAVAILABLE",
