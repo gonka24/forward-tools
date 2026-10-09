@@ -68,7 +68,7 @@ tx sign --unsigned FILE --adapter inferenced --cli PATH --key NAME --home DIR --
 tx import --unsigned FILE --signed-tx FILE --out SIGNED
 tx broadcast --signed FILE --receipt FILE --confirm
 tx confirm --receipt FILE [--timeout-seconds 120] [--out RESULT]
-report readiness --host ADDRESS [--signer ADDRESS] [--epoch N --price DECIMAL --budget DECIMAL] [--adapter external|inferenced] --out REPORT
+report readiness --host ADDRESS [--signer ADDRESS] [--epoch N --price DECIMAL --budget DECIMAL] [--signing-proofs FILE1,FILE2,FILE3] --out REPORT
 All commands support --deployment ID and emit JSON. Local outputs are excluded from Git when stored in .forward/.
 --deployment-file FILE is for explicitly configured local validation networks.
 Actions: create-offer route remove-route fund lock claim settle withdraw release refund cancel forward-excess
@@ -80,7 +80,7 @@ async function consent(label: string) {
     "OWNER_CONFIRMATION",
     "Run signing/submission in owner interactive terminal",
   );
-  const r = createInterface({ input: process.stdin, output: process.stdout });
+  const r = createInterface({ input: process.stdin, output: process.stderr });
   try {
     requireFact(
       (await r.question(`${label}. Type CONFIRM: `)) === "CONFIRM",
@@ -102,6 +102,11 @@ async function signedBytes(file: string) {
   const { encoded } = await import("./transactions.js");
   const body = x.body,
     auth = x.auth_info;
+  requireFact(
+    !body?.unordered && !body?.timeout_timestamp && !auth?.tip,
+    "SIGNED_TX_CHANGED",
+    "Unordered transactions, timestamps and tips are not supported",
+  );
   requireFact(
     body && auth && Array.isArray(x.signatures),
     "INVALID_SIGNED",
@@ -226,7 +231,13 @@ async function main() {
     );
     const u = await load(str("unsigned")!);
     await checkFresh(c, u);
-    print({ operation: u.operation, feeNgonka: u.fee, gas: u.gas });
+    console.error(
+      JSON.stringify(
+        { operation: u.operation, feeNgonka: u.fee, gas: u.gas },
+        null,
+        2,
+      ),
+    );
     await consent("Owner authorizes signature only");
     const folder = dirname(resolve(str("out")!));
     await mkdir(folder, { recursive: true });
@@ -257,7 +268,13 @@ async function main() {
       "DEPLOYMENT_MISMATCH",
       "Signed deployment differs",
     );
-    print({ operation: s.unsigned.operation, feeNgonka: s.unsigned.fee });
+    console.error(
+      JSON.stringify(
+        { operation: s.unsigned.operation, feeNgonka: s.unsigned.fee },
+        null,
+        2,
+      ),
+    );
     await consent("Owner authorizes sending this transaction");
     const p = str("receipt")!;
     await save(p, { status: "PREPARING" });

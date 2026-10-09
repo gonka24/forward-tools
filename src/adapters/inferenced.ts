@@ -53,6 +53,7 @@ export class InferencedAdapter implements SigningAdapter {
         "tx",
         "sign",
         paths.unsignedTx,
+        "--overwrite",
         "--from",
         this.keyName,
         "--home",

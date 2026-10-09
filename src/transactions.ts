@@ -53,6 +53,8 @@ export function txJson(
       messages: op.messages.map((m) => ({ "@type": m.typeUrl, ...m.value })),
       memo: "",
       timeout_height: "0",
+      unordered: false,
+      timeout_timestamp: null,
       extension_options: [],
       non_critical_extension_options: [],
     },
@@ -73,6 +75,7 @@ export function txJson(
         payer: "",
         granter: "",
       },
+      tip: null,
     },
     // Cosmos SDK's JSON signer expects one empty signature slot per signer info.
     // It is not a signature; the external owner replaces it when signing.

@@ -6,13 +6,25 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+import json
 sys.path.insert(0,'/app')
 from forward_e2e.suite.supervisor import DinDSupervisor
-root=Path('/workspace/e2e-usdt-exact-r2-20261009')
+root=Path(os.environ.get('TOOLS_E2E_RUN_ROOT','/workspace/e2e-usdt-exact-r2-20261009'))
 out=Path('/tools/.forward/local-live');out.mkdir(parents=True,exist_ok=True)
 supervisor=DinDSupervisor(Path('/workspace'))
 supervisor.start_dockerd()
 baseline=set(subprocess.run(['docker','ps','-aq'],capture_output=True,text=True,check=True).stdout.split())
+def inventory():
+    return {kind:set(subprocess.run(cmd,capture_output=True,text=True,check=True).stdout.split()) for kind,cmd in {
+        'containers':['docker','ps','-aq'],'volumes':['docker','volume','ls','-q'],'networks':['docker','network','ls','-q']}.items()}
+ownership=[]
+def cleanup(before):
+    after=inventory();created={k:sorted(after[k]-before[k]) for k in before}
+    for kind,cmd in [('containers',['docker','rm','-f']),('volumes',['docker','volume','rm']),('networks',['docker','network','rm'])]:
+        if created[kind]:subprocess.run(cmd+created[kind],check=True)
+    remaining=inventory();record={'created':created,'remaining':{k:sorted(remaining[k]-before[k]) for k in before}}
+    record['status']='CLEAN' if not any(record['remaining'].values()) else 'INCOMPLETE';ownership.append(record)
+    (out/'ownership.local.json').write_text(json.dumps(ownership,indent=2))
 proxy=subprocess.Popen(['/opt/node/bin/node','/tools/test/integration/proxy.mjs'])
 os.environ.update(E2E_SETTLEMENT_TOKEN='mainnet-usdt',E2E_EXPECTED_GONKA_SHA='136041c81ea8ff38e7620d76af66a7c7fe7eec50',E2E_EXPECTED_PROTO_SHA='379bebced638aeb5e6077bfd51c986f898443832',E2E_EVIDENCE_MODEL='a8.evidence/e2e-immutable-source/2')
 try:
@@ -22,7 +34,9 @@ try:
         run_id='tools-'+scenario+'-'+stamp;run_ids.append(run_id)
         cmd[cmd.index('--run-id')+1]=run_id;cmd[cmd.index('--work-root')+1]+='-'+stamp
         cmd += ['--expected-gonka-sha','136041c81ea8ff38e7620d76af66a7c7fe7eec50','--expected-proto-sha','379bebced638aeb5e6077bfd51c986f898443832','--evidence-model','a8.evidence/e2e-immutable-source/2']
-        subprocess.run(cmd,check=True)
+        before=inventory()
+        try:subprocess.run(cmd,check=True)
+        finally:cleanup(before)
 finally:
     proxy.terminate();proxy.wait(timeout=10)
     # Teardown only E2E-owned resources on this private daemon.

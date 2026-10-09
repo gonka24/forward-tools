@@ -84,7 +84,7 @@ def tool_tx(self, container, key, *args, gas):
     unsigned=json.loads(u.read_text());txfile=Path(str(prefix)+'-cosmos.local.json');txfile.write_text(json.dumps(unsigned['tx']))
     remote='/tmp/tools-unsigned.json';signed_remote='/tmp/tools-signed.json'
     checked(['docker','cp',str(txfile),container+':'+remote]);backend,password=self.keyring(container)
-    checked(['docker','exec','-i',container,'inferenced','tx','sign',remote,'--from',key,'--keyring-dir','/root/.inference','--keyring-backend',backend,'--chain-id',self.chain_id,'--offline','--account-number',unsigned['accountNumber'],'--sequence',unsigned['sequence'],'--sign-mode','direct','--output-document',signed_remote],input_text=password)
+    checked(['docker','exec','-i',container,'inferenced','tx','sign',remote,'--overwrite','--from',key,'--keyring-dir','/root/.inference','--keyring-backend',backend,'--chain-id',self.chain_id,'--offline','--account-number',unsigned['accountNumber'],'--sequence',unsigned['sequence'],'--sign-mode','direct','--output-document',signed_remote],input_text=password)
     external=Path(str(prefix)+'-external.local.json');checked(['docker','cp',container+':'+signed_remote,str(external)])
     cli('tx','import','--unsigned',str(u),'--signed-tx',str(external),out=s)
     # pseudo-terminal exercises the actual owner-confirmation CLI on this isolated test chain.
