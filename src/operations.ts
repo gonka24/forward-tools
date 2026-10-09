@@ -84,7 +84,14 @@ export async function prepare(
     const deal = address(input.deal),
       { config: k, state: s, payments } = await c.deal(deal),
       E = epoch(k.target_epoch);
-    terms = { ...k, beforeState: s };
+    terms = {
+      ...k,
+      budgetEconomics: economics(
+        k.buyer_budget_micro_usdt,
+        k.price_micro_usdt_per_gnk,
+      ),
+      beforeState: s,
+    };
     const window = current >= E && current < E + 5;
     // All routing failures propagate; absence is recognized only in a successful response.
     const routing = async () => {
@@ -393,6 +400,10 @@ export async function status(c: Chain, a: string) {
   }
   return {
     ...deal,
+    budgetEconomics: economics(
+      deal.config.buyer_budget_micro_usdt,
+      deal.config.price_micro_usdt_per_gnk,
+    ),
     status: native?.status === "UNAVAILABLE" ? "INCOMPLETE" : "OBSERVED",
     currentEpoch: current,
     lockDeadlineExclusive: E + 5,

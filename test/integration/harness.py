@@ -32,6 +32,8 @@ ROOT = Path('/tools')
 OUT = Path(os.environ.get('TOOLS_LIVE_OUTPUT', '/tools/.forward/local-live'))
 OUT.mkdir(parents=True, exist_ok=True)
 NODE=os.environ.get('TOOLS_NODE','/tools/.forward/node24/bin/node')
+if '--run-id' in sys.argv:
+    os.environ['TOOLS_LIVE_RUN_ID']=sys.argv[sys.argv.index('--run-id')+1]
 
 def checked(cmd, *, input_text=None):
     result = subprocess.run(cmd, input=input_text, text=True, capture_output=True, timeout=180)
@@ -97,7 +99,8 @@ def tool_tx(self, container, key, *args, gas):
     checked(['script','-q','-e','-c',shlex.join(cmd),'/dev/null'],input_text='CONFIRM\n')
     result=cli('tx','confirm','--receipt',str(r),out=Path(str(prefix)+'-result.local.json'))
     if result['status']!='INCLUDED' or result['postcondition']['status']!='RESULT_VERIFIED':raise RuntimeError('Tools local transaction not verified')
-    with (OUT/'operations.jsonl').open('a') as f:f.write(json.dumps({'runId':os.environ.get('TOOLS_LIVE_RUN_ID','unclassified-local-run'),'action':action,'txHash':result['txHash'],'height':result['height'],'postcondition':result['postcondition']['status']})+'\n')
+    tools_commit=checked(['git','-c','safe.directory=/tools','-C','/tools','rev-parse','HEAD']).strip()
+    with (OUT/'operations.jsonl').open('a') as f:f.write(json.dumps({'runId':os.environ.get('TOOLS_LIVE_RUN_ID','unclassified-local-run'),'toolsCommit':tools_commit,'action':action,'txHash':result['txHash'],'height':result['height'],'postcondition':result['postcondition']['status']})+'\n')
     return self.wait_tx(result['txHash'])
 
 m.DockerGonka.tx=tool_tx
