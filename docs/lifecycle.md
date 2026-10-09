@@ -17,7 +17,7 @@ contract chooses the recipient and amount, regardless of the caller.
 | `withdraw` | Caller | Chosen role has positive pending USDT | Pays immutable Host, Fee or Buyer recipient; a separate transaction per role |
 | `release` | Caller | Releasing/Completed/Refunded/Expired with liquid GNK | Releases available GNK under the frozen allocation policy |
 | `forward-excess` | Caller | Completed with liquid GNK | Same frozen policy for additional GNK |
-| `refund` | Caller | Funded with routing mismatch in E..E+4, or Locked unclaimed from E+2 | Records refund/expiry; pending USDT still needs withdrawal |
+| `refund` | Caller | Funded with routing mismatch in E..E+4, or Locked unclaimed from E+2 | Atomically returns the funded budget to Buyer and records Refunded; without Buyer records Expired |
 | `cancel` | Host before E; caller from E | Open without Buyer, before E+5, no exact routing | Cancels unfunded offer |
 
 An unavailable routing/summary query is a blocker, not proof of a mismatch or
@@ -35,6 +35,9 @@ Settlement, withdrawal and GNK release are distinct operations. `Completed`
 does not imply that all USDT recipients withdrew their debts or that all future
 GNK vesting finished. Continue `deal status`, withdraw each pending role and
 release newly liquid GNK as required.
+Refund is different: in this deployed version its CW20 transfer happens inside
+the Refund transaction. If that transfer fails, the whole Refund rolls back.
+Do not invent a separate pending Buyer withdrawal after a successful Refund.
 
 Each operation uses `prepare → export → sign/import → broadcast → confirm`.
 An operation file is a checked proposal, a signed file is authorization of those
