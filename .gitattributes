@@ -1,0 +1,5 @@
+* text=auto eol=lf
+provenance/*.proto -text
+provenance/*.go -text
+provenance/*.rs -text
+provenance/*LICENSE -text

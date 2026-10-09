@@ -1,0 +1,11 @@
+Gonka Forward Tools
+Copyright 2026 Gonka24 contributors
+
+Original client code is licensed under Apache-2.0.
+Third-party reference sources in provenance/ retain their original licenses:
+Gonka: provenance/GONKA-LICENSE
+Gonka24 Forward Marketplace: provenance/CONTRACTS-LICENSE
+JavaScript dependencies retain their package licenses and are pinned in package-lock.json.
+
+This tool interacts with existing contracts. It does not grant rights to deploy
+new production Marketplace implementations beyond the upstream contract license.

@@ -1,0 +1,15 @@
+{
+ "id":"mainnet-v1","chainId":"gonka-mainnet",
+ "nodes":["https://node1.gonka.ai:8443","https://node2.gonka.ai:8443"],
+ "gonkaSha":"136041c81ea8ff38e7620d76af66a7c7fe7eec50",
+ "contractsSha":"4092b665c97b87f937d4c4c230870cebb038a4d8",
+ "factory":"gonka1ea2s57dvs06fr5mjzmna9w9vt0xylrna5cjtmzr5h72vkrza3xxsp7eayy",
+ "factoryCodeId":120,"dealCodeId":119,
+ "token":"gonka15ggwj9un6qrmu4nj5ev6l7kpdcr00td03ff2mmj4cyhl8u8vjd2qnl3hgk",
+ "feeRecipient":"gonka17srut7dsa937mrttq0v0euexgkw00h04w49tjj","feeBps":150,
+ "factoryHash":"8366a874619c03e54ed36edf6b0ebbde4001afcf6c1b02ed40f9762350e6d82b",
+ "dealHash":"24b2a721632f23c25f543721553701a465064e05b78eb48fb9667e46fe967027",
+ "tokenHash":"5833f840d5fde0f5eb179b09a08cc8b7c2cff8da86df647a92f63917f1f31aca",
+ "protoSha":"379bebced638aeb5e6077bfd51c986f898443832",
+ "evidence":"https://github.com/gonka24/forward-e2e/releases/tag/evidence-mainnet-usdt-20261009"
+}
