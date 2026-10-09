@@ -5,12 +5,30 @@ import { readFileSync } from "node:fs";
 import { DirectSecp256k1Wallet } from "@cosmjs/proto-signing";
 import { toBech32 } from "@cosmjs/encoding";
 import { Chain, hash } from "../src/chain.js";
-import { Deployment, signed64, ToolError } from "../src/model.js";
+import { Deployment, signed64, ToolError, wireUint } from "../src/model.js";
 import { CLAIM, encodeNative, decodeNative } from "../src/native.js";
 import { prepare } from "../src/operations.js";
 import { exportTx, checkFresh } from "../src/transactions.js";
 const addr = toBech32("gonka", new Uint8Array(20).fill(9));
 const contract = toBech32("gonka", new Uint8Array(32).fill(10));
+test("missing or coerced network scalars cannot become success or epoch zero", () => {
+  for (const value of [
+    null,
+    undefined,
+    false,
+    true,
+    "",
+    "00",
+    " 0",
+    -1,
+    {},
+    [],
+    1.5,
+  ])
+    assert.throws(() => wireUint(value), /network scalar/);
+  assert.equal(wireUint("0"), 0);
+  assert.equal(wireUint(9), 9);
+});
 const d: Deployment = {
   id: "synthetic",
   chainId: "synthetic-chain",

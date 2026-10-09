@@ -10,6 +10,7 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+from decimal import Decimal
 import urllib.request
 
 sys.path.insert(0, '/app/scripts')
@@ -49,7 +50,7 @@ def tool_tx(self, container, key, *args, gas):
         contract, message=args[2],json.loads(args[3]); name=next(iter(message)); value=message[name]
         if name=='create_offer':
             action='create-offer';factory=contract
-            inputs={'epoch':str(value['target_epoch']),'price':str(int(value['price_micro_usdt_per_gnk'])/1000000),'budget':str(int(value['buyer_budget_micro_usdt'])/1000000)}
+            inputs={'epoch':str(value['target_epoch']),'price':str(Decimal(value['price_micro_usdt_per_gnk'])/Decimal(1000000)),'budget':str(Decimal(value['buyer_budget_micro_usdt'])/Decimal(1000000))}
         elif name=='send' and value.get('msg')=='eyJmdW5kIjp7fX0=': action='fund';deal=value['contract']
         else:
             action={'lock':'lock','settle_claim':'settle','withdraw_usdt':'withdraw','release_unlocked_gnk':'release','refund':'refund','cancel':'cancel','forward_excess_gnk':'forward-excess'}.get(name)

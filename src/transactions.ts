@@ -22,6 +22,7 @@ import {
   Signed,
   requireFact,
   integer,
+  wireUint,
 } from "./model.js";
 import { revalidate, EXEC } from "./operations.js";
 import { encodeNative, ROUTE, CLAIM } from "./native.js";
@@ -237,10 +238,8 @@ export async function verifySigned(
 export interface SigningAdapter {
   capabilities: { direct: boolean; typeUrls: string[] };
   getAddress(): Promise<string>;
-  sign(
-    unsigned: Unsigned,
-    paths: { unsignedTx: string; signedTx: string },
-  ): Promise<string>;
+  /** Returns signed TxRaw bytes as base64; no wallet-specific filesystem contract. */
+  sign(unsigned: Unsigned): Promise<string>;
 }
 export async function checkFresh(c: Chain, u: Unsigned) {
   await revalidate(c, u.operation);
@@ -296,10 +295,11 @@ export async function broadcast(
     "Unexpected broadcast response",
   );
   receipt.response = t;
-  receipt.status = Number(t.code) === 0 ? "SUBMITTED" : "REJECTED";
+  const resultCode = wireUint(t.code, 4294967295);
+  receipt.status = resultCode === 0 ? "SUBMITTED" : "REJECTED";
   await save(receipt);
   requireFact(
-    Number(t.code) === 0,
+    resultCode === 0,
     "TX_REJECTED",
     t.raw_log ?? "Mempool rejected transaction",
   );
@@ -358,9 +358,10 @@ export async function confirm(
             "Block result missing",
           );
           const result = results.txs_results[i];
+          const resultCode = wireUint(result.code, 4294967295);
           return {
-            status: Number(result.code) === 0 ? "INCLUDED" : "FAILED",
-            code: Number(result.code) === 0 ? undefined : "TX_FAILED",
+            status: resultCode === 0 ? "INCLUDED" : "FAILED",
+            code: resultCode === 0 ? undefined : "TX_FAILED",
             txHash: txHash.toUpperCase(),
             height: height.toString(),
             index: i,

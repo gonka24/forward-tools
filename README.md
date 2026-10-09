@@ -30,7 +30,8 @@ node dist/src/cli.js deployment verify
 
 Текущее развёртывание `mainnet-v1`: Factory
 `gonka1ea2s57dvs06fr5mjzmna9w9vt0xylrna5cjtmzr5h72vkrza3xxsp7eayy`, code 120,
-Deal code 119, оба без Wasm admin. Адрес USDT и контрольные суммы закреплены
+Deal code 119. Factory не имеет Wasm admin; её закреплённый код создаёт Deal
+без admin, что tools проверяет у каждого экземпляра. Адрес USDT и контрольные суммы закреплены
 в реестре. USDT здесь — CW20 внутри Gonka, полученный через Ethereum bridge.
 GNK нужен отдельно для комиссии сети.
 

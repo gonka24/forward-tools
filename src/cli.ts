@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { signedJsonBytes } from "./signed-json.js";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -94,75 +95,9 @@ async function consent(label: string) {
   }
 }
 async function signedBytes(file: string) {
-  const x = await load(file);
-  if (typeof x.tx_bytes === "string") return x.tx_bytes;
-  // Cosmos CLI's JSON is converted to TxRaw with the same wire representation.
-  const { TxRaw, TxBody, AuthInfo } = await import(
-    "cosmjs-types/cosmos/tx/v1beta1/tx"
-  );
-  const { PubKey } = await import("cosmjs-types/cosmos/crypto/secp256k1/keys");
-  const { encoded } = await import("./transactions.js");
-  const body = x.body,
-    auth = x.auth_info;
-  requireFact(
-    !body?.unordered && !body?.timeout_timestamp && !auth?.tip,
-    "SIGNED_TX_CHANGED",
-    "Unordered transactions, timestamps and tips are not supported",
-  );
-  requireFact(
-    body && auth && Array.isArray(x.signatures),
-    "INVALID_SIGNED",
-    "Expected Cosmos tx JSON or {tx_bytes: base64}",
-  );
-  requireFact(
-    !body.extension_options?.length &&
-      !body.non_critical_extension_options?.length,
-    "SIGNED_TX_CHANGED",
-    "Extensions not supported",
-  );
-  const raw = TxRaw.fromPartial({
-    bodyBytes: TxBody.encode(
-      TxBody.fromPartial({
-        messages: body.messages.map((m: any) => {
-          const { "@type": typeUrl, ...value } = m;
-          return encoded({ typeUrl, value });
-        }),
-        memo: body.memo ?? "",
-        timeoutHeight: BigInt(body.timeout_height ?? "0"),
-      }),
-    ).finish(),
-    authInfoBytes: AuthInfo.encode(
-      AuthInfo.fromPartial({
-        signerInfos: auth.signer_infos.map((s: any) => {
-          requireFact(
-            s.public_key["@type"] === "/cosmos.crypto.secp256k1.PubKey" &&
-              s.mode_info?.single?.mode === "SIGN_MODE_DIRECT",
-            "UNSUPPORTED_SIGNER",
-            "Direct secp256k1 signing only",
-          );
-          return {
-            publicKey: {
-              typeUrl: s.public_key["@type"],
-              value: PubKey.encode({
-                key: Buffer.from(s.public_key.key, "base64"),
-              }).finish(),
-            },
-            modeInfo: { single: { mode: 1 } },
-            sequence: BigInt(s.sequence),
-          };
-        }),
-        fee: {
-          amount: auth.fee.amount,
-          gasLimit: BigInt(auth.fee.gas_limit),
-          payer: auth.fee.payer ?? "",
-          granter: auth.fee.granter ?? "",
-        },
-      }),
-    ).finish(),
-    signatures: x.signatures.map((s: string) => Buffer.from(s, "base64")),
-  });
-  return Buffer.from(TxRaw.encode(raw).finish()).toString("base64");
+  return signedJsonBytes(await load(file));
 }
+
 async function main() {
   if (!group || group === "help" || group === "--help") {
     help();
@@ -289,8 +224,11 @@ async function main() {
       str("home")!,
       str("backend")!,
     );
-    await adapter.sign(u, { unsignedTx: txPath, signedTx: signedPath });
-    result = await verifySigned(u, await signedBytes(signedPath));
+    const raw = await adapter.sign(u, {
+      unsignedTx: txPath,
+      signedTx: signedPath,
+    });
+    result = await verifySigned(u, raw);
   } else if (group === "tx" && command === "import") {
     const u = await load(str("unsigned")!);
     await checkFresh(c, u);

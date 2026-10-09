@@ -15,6 +15,25 @@ export function requireFact(
   if (!condition) throw new ToolError(code, message);
 }
 export type Json = any;
+// RPC scalars must not turn null/false/empty into a successful zero result.
+export function wireUint(
+  value: unknown,
+  maximum = Number.MAX_SAFE_INTEGER,
+): number {
+  requireFact(
+    (typeof value === "string" && /^(0|[1-9][0-9]*)$/.test(value)) ||
+      (typeof value === "number" && Number.isSafeInteger(value) && value >= 0),
+    "INCOMPLETE",
+    "Missing or malformed unsigned network scalar",
+  );
+  const n = Number(value);
+  requireFact(
+    Number.isSafeInteger(n) && n <= maximum,
+    "INCOMPLETE",
+    "Network scalar exceeds supported range",
+  );
+  return n;
+}
 export type Action =
   | "create-offer"
   | "route"

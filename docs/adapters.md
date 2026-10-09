@@ -8,8 +8,10 @@ public signer identity, and `capabilities` declares formats and type URLs.
 simulated gas and exact fee. It works without a wallet executable.
 
 An adapter implements `SigningAdapter`, declares SIGN_MODE_DIRECT support and
-supported type URLs, and returns a signed transaction. The adapter must not alter
-messages, memo, sender or fees. The wallet may reject the proposed fee; in that
+supported type URLs, and returns a signed transaction.
+`sign(unsigned)` returns base64 protobuf TxRaw bytes, without filesystem paths
+in the common interface. Browser wallets can consume `unsigned.signDoc` directly.
+The adapter must not alter messages, memo, sender or fees. The wallet may reject the proposed fee; in that
 case export a new reviewed transaction instead of silently accepting changes.
 
 Supported wire messages:

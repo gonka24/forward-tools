@@ -6,7 +6,14 @@ import {
   toUtf8,
   toHex,
 } from "@cosmjs/encoding";
-import { Deployment, ToolError, requireFact, epoch, integer } from "./model.js";
+import {
+  Deployment,
+  ToolError,
+  requireFact,
+  epoch,
+  integer,
+  wireUint,
+} from "./model.js";
 export const NATIVE = "/productscience/inference/inference/";
 export type Fetcher = (url: string, init?: RequestInit) => Promise<any>;
 export const http: Fetcher = async (url, init) => {
@@ -191,7 +198,9 @@ export class Chain {
     return { status: "VERIFIED", deployment: d.id, observations: receipts };
   }
   async currentEpoch() {
-    return epoch(Number((await this.api(NATIVE + "get_current_epoch")).epoch));
+    return epoch(
+      wireUint((await this.api(NATIVE + "get_current_epoch")).epoch),
+    );
   }
   async routes(host: string) {
     const r = await this.api(NATIVE + `list_claim_recipients/${address(host)}`);
@@ -202,10 +211,15 @@ export class Chain {
     );
     const seen = new Set<number>();
     for (const e of r.entries) {
-      const n = epoch(Number(e.epoch));
+      const n = epoch(wireUint(e.epoch));
       requireFact(!seen.has(n), "ROUTING_INVALID", "Duplicate routing epoch");
       seen.add(n);
-      if (e.recipient) address(e.recipient);
+      requireFact(
+        typeof e.recipient === "string" && e.recipient.length > 0,
+        "INCOMPLETE",
+        "Stored routing recipient missing",
+      );
+      address(e.recipient);
     }
     return r.entries as { epoch: string; recipient: string }[];
   }

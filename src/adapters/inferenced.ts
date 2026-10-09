@@ -4,6 +4,11 @@ import { SigningAdapter } from "../transactions.js";
 import { EXEC } from "../operations.js";
 import { ROUTE, CLAIM } from "../native.js";
 import { address } from "../chain.js";
+import { same } from "../chain.js";
+import { verifySigned } from "../transactions.js";
+import { signedJsonBytes } from "../signed-json.js";
+import { mkdir, mkdtemp, writeFile, readFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 export class InferencedAdapter implements SigningAdapter {
   capabilities = { direct: true, typeUrls: [EXEC, ROUTE, CLAIM] };
   constructor(
@@ -40,7 +45,22 @@ export class InferencedAdapter implements SigningAdapter {
     );
     return address(r.stdout.trim().split(/\s+/).at(-1)!);
   }
-  async sign(u: Unsigned, paths: { unsignedTx: string; signedTx: string }) {
+  async sign(u: Unsigned, paths?: { unsignedTx: string; signedTx: string }) {
+    if (!paths) {
+      const parent = resolve(".forward");
+      await mkdir(parent, { recursive: true });
+      const dir = await mkdtemp(join(parent, "signing-"));
+      paths = {
+        unsignedTx: join(dir, "unsigned.local.json"),
+        signedTx: join(dir, "signed.local.json"),
+      };
+      await writeFile(paths.unsignedTx, JSON.stringify(u.tx), { flag: "wx" });
+    }
+    requireFact(
+      same(JSON.parse(await readFile(paths.unsignedTx, "utf8")), u.tx),
+      "UNSIGNED_FILE_CHANGED",
+      "Signing input file differs from reviewed unsigned transaction",
+    );
     requireFact(
       (await this.getAddress()) === u.operation.sender,
       "SIGNER_MISMATCH",
@@ -75,6 +95,10 @@ export class InferencedAdapter implements SigningAdapter {
       { stdio: "inherit", shell: false },
     );
     requireFact(r.status === 0, "SIGNING_FAILED", "inferenced signing failed");
-    return paths.signedTx;
+    const raw = signedJsonBytes(
+      JSON.parse(await readFile(paths.signedTx, "utf8")),
+    );
+    await verifySigned(u, raw);
+    return raw;
   }
 }

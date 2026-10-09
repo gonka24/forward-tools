@@ -328,7 +328,7 @@ test("block scan confirms without transaction index and checks included result",
     h = hash(Buffer.from(bytes, "base64"));
   const c = new Chain(deployment);
   c.tip = async () => "100";
-  let code = 0;
+  let code: any = 0;
   c.rpc = async (path) =>
     path.startsWith("block?")
       ? {
@@ -344,6 +344,10 @@ test("block scan confirms without transaction index and checks included result",
   assert.equal((await confirm(c, h, "100", 100)).status, "INCLUDED");
   code = 5;
   assert.equal((await confirm(c, h, "100", 100)).status, "FAILED");
+  for (const missing of [null, false, "", undefined]) {
+    code = missing;
+    await assert.rejects(confirm(c, h, "100", 100));
+  }
 });
 test("missing block result never passes confirmation", async () => {
   const b = Buffer.from("synthetic").toString("base64"),
