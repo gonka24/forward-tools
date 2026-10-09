@@ -323,6 +323,63 @@ test("signature binds messages fee chain account sender and sequence", async () 
     await assert.rejects(verifySigned(changed, bytes));
   }
 });
+test("broadcast persists identity before submission and height zero never means inclusion", async () => {
+  const { c } = fixture("funded", 10);
+  const wallet = await DirectSecp256k1Wallet.fromKey(
+    new Uint8Array(32).fill(8),
+    "gonka",
+  );
+  const [a] = await wallet.getAccounts();
+  c.account = async () => ({ account_number: "2", sequence: "3" });
+  let submitted = 0,
+    mode = "accepted";
+  c.api = async (path) => {
+    if (path.endsWith("simulate")) return { gas_info: { gas_used: "10" } };
+    submitted++;
+    if (mode === "unknown")
+      throw new ToolError("RPC_UNAVAILABLE", "synthetic interrupted response");
+    return { tx_response: { txhash: digest, code: 0, height: "0" } };
+  };
+  const op = await prepare(c, "lock", a.address, { deal: D });
+  const u = await exportTx(c, op, Buffer.from(a.pubkey).toString("base64"));
+  const raw = wire(u);
+  const signed = await wallet.signDirect(
+    a.address,
+    SignDoc.fromPartial({
+      bodyBytes: raw.bodyBytes,
+      authInfoBytes: raw.authInfoBytes,
+      chainId: deployment.chainId,
+      accountNumber: 2n,
+    }),
+  );
+  raw.signatures = [Buffer.from(signed.signature.signature, "base64")];
+  const raw64 = Buffer.from(TxRaw.encode(raw).finish()).toString("base64");
+  const digest = hash(Buffer.from(raw64, "base64")).toUpperCase();
+  const s = await verifySigned(u, raw64);
+  await assert.rejects(
+    broadcast(c, s, async () => {
+      throw new Error("synthetic disk failure");
+    }),
+    /disk failure/,
+  );
+  assert.equal(submitted, 0);
+  const records: any[] = [];
+  const save = async (r: any) => {
+    records.push(structuredClone(r));
+  };
+  assert.equal((await broadcast(c, s, save)).status, "SUBMITTED");
+  assert.equal(records[0].status, "SUBMISSION_UNKNOWN");
+  assert.equal(records[0].txHash, digest);
+  assert.equal(records[0].fromHeight, "100");
+  assert.equal(records[1].response.height, "0");
+  mode = "unknown";
+  records.length = 0;
+  await assert.rejects(broadcast(c, s, save), /interrupted/);
+  assert.equal(records.length, 1);
+  assert.equal(records[0].status, "SUBMISSION_UNKNOWN");
+  assert.equal(submitted, 2);
+});
+
 test("block scan confirms without transaction index and checks included result", async () => {
   const bytes = Buffer.from("synthetic transaction").toString("base64"),
     h = hash(Buffer.from(bytes, "base64"));
