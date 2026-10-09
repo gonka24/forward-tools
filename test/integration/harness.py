@@ -100,7 +100,7 @@ def tool_tx(self, container, key, *args, gas):
     result=cli('tx','confirm','--receipt',str(r),out=Path(str(prefix)+'-result.local.json'))
     if result['status']!='INCLUDED' or result['postcondition']['status']!='RESULT_VERIFIED':raise RuntimeError('Tools local transaction not verified')
     tools_commit=checked(['git','-c','safe.directory=/tools','-C','/tools','rev-parse','HEAD']).strip()
-    with (OUT/'operations.jsonl').open('a') as f:f.write(json.dumps({'runId':os.environ.get('TOOLS_LIVE_RUN_ID','unclassified-local-run'),'toolsCommit':tools_commit,'action':action,'txHash':result['txHash'],'height':result['height'],'postcondition':result['postcondition']['status']})+'\n')
+    with (OUT/'operations.jsonl').open('a') as f:f.write(json.dumps({'runId':os.environ.get('E2E_RUN_ID',os.environ.get('TOOLS_LIVE_RUN_ID','unclassified-local-run')),'toolsCommit':tools_commit,'action':action,'txHash':result['txHash'],'height':result['height'],'postcondition':result['postcondition']['status']})+'\n')
     return self.wait_tx(result['txHash'])
 
 m.DockerGonka.tx=tool_tx
