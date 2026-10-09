@@ -30,6 +30,7 @@ original = m.DockerGonka.tx
 ROOT = Path('/tools')
 OUT = Path(os.environ.get('TOOLS_LIVE_OUTPUT', '/tools/.forward/local-live'))
 OUT.mkdir(parents=True, exist_ok=True)
+NODE=os.environ.get('TOOLS_NODE','/tools/.forward/node24/bin/node')
 
 def checked(cmd, *, input_text=None):
     result = subprocess.run(cmd, input=input_text, text=True, capture_output=True, timeout=180)
@@ -38,7 +39,7 @@ def checked(cmd, *, input_text=None):
     return result.stdout
 
 def cli(*args, out=None):
-    command = ['/opt/node/bin/node', str(ROOT/'dist/src/cli.js'), *args, '--deployment-file', str(OUT/'deployment.local.json')]
+    command = [NODE, str(ROOT/'dist/src/cli.js'), *args, '--deployment-file', str(OUT/'deployment.local.json')]
     if out: command += ['--out', str(out)]
     return json.loads(checked(command))
 
@@ -75,7 +76,11 @@ def tool_tx(self, container, key, *args, gas):
     prefix=OUT/f'{time.time_ns()}-{action}';op=Path(str(prefix)+'-op.local.json');u=Path(str(prefix)+'-unsigned.local.json');s=Path(str(prefix)+'-signed.local.json');r=Path(str(prefix)+'-receipt.local.json')
     command=['deal','prepare','--action',action,'--sender',self.key_address(container,key)]
     for k,v in inputs.items():command+=['--'+k,str(v)]
-    cli(*command,out=op);cli('tx','export','--operation',str(op),out=u)
+    cli(*command,out=op)
+    backend,password=self.keyring(container)
+    public=checked(['docker','exec','-i',container,'inferenced','keys','show',key,'--pubkey','--keyring-backend',backend,'--keyring-dir','/root/.inference'],input_text=password)
+    pubkey=json.loads(public)['key']
+    cli('tx','export','--operation',str(op),'--public-key',pubkey,out=u)
     unsigned=json.loads(u.read_text());txfile=Path(str(prefix)+'-cosmos.local.json');txfile.write_text(json.dumps(unsigned['tx']))
     remote='/tmp/tools-unsigned.json';signed_remote='/tmp/tools-signed.json'
     checked(['docker','cp',str(txfile),container+':'+remote]);backend,password=self.keyring(container)
@@ -84,7 +89,7 @@ def tool_tx(self, container, key, *args, gas):
     cli('tx','import','--unsigned',str(u),'--signed-tx',str(external),out=s)
     # pseudo-terminal exercises the actual owner-confirmation CLI on this isolated test chain.
     import shlex
-    cmd=['/opt/node/bin/node',str(ROOT/'dist/src/cli.js'),'tx','broadcast','--signed',str(s),'--receipt',str(r),'--confirm','--deployment-file',str(OUT/'deployment.local.json')]
+    cmd=[NODE,str(ROOT/'dist/src/cli.js'),'tx','broadcast','--signed',str(s),'--receipt',str(r),'--confirm','--deployment-file',str(OUT/'deployment.local.json')]
     checked(['script','-q','-e','-c',shlex.join(cmd),'/dev/null'],input_text='CONFIRM\n')
     result=cli('tx','confirm','--receipt',str(r),out=Path(str(prefix)+'-result.local.json'))
     if result['status']!='INCLUDED' or result['postcondition']['status']!='RESULT_VERIFIED':raise RuntimeError('Tools local transaction not verified')

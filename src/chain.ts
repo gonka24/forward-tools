@@ -217,6 +217,15 @@ export class Chain {
       "HOST_MISMATCH",
       "Participant identity missing or mismatched",
     );
+    requireFact(
+      p.status === "ACTIVE" &&
+        Number.isFinite(Number(p.weight)) &&
+        Number(p.weight) >= 0 &&
+        typeof p.inference_url === "string" &&
+        /^https?:\/\//.test(p.inference_url),
+      "HOST_NOT_COMPUTE_PARTICIPANT",
+      "Account exists but active compute participant is not established (developer accounts are not hosts)",
+    );
     return p;
   }
   async balance(a: string) {

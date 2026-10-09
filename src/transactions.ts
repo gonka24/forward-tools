@@ -74,7 +74,9 @@ export function txJson(
         granter: "",
       },
     },
-    signatures: [],
+    // Cosmos SDK's JSON signer expects one empty signature slot per signer info.
+    // It is not a signature; the external owner replaces it when signing.
+    signatures: [""],
   };
 }
 export function wire(u: Unsigned): TxRaw {

@@ -9,13 +9,26 @@ import { Deployment, signed64, ToolError } from "../src/model.js";
 import { CLAIM, encodeNative, decodeNative } from "../src/native.js";
 import { prepare } from "../src/operations.js";
 import { exportTx, checkFresh } from "../src/transactions.js";
-const d: Deployment = JSON.parse(
-  readFileSync(
-    new URL("../../deployments/mainnet-v1.json", import.meta.url),
-    "utf8",
-  ),
-);
 const addr = toBech32("gonka", new Uint8Array(20).fill(9));
+const contract = toBech32("gonka", new Uint8Array(32).fill(10));
+const d: Deployment = {
+  id: "synthetic",
+  chainId: "synthetic-chain",
+  nodes: ["http://synthetic.invalid"],
+  gonkaSha: "a".repeat(40),
+  contractsSha: "b".repeat(40),
+  factory: contract,
+  factoryCodeId: 1,
+  dealCodeId: 2,
+  token: contract,
+  feeRecipient: addr,
+  factoryHash: "c".repeat(64),
+  dealHash: "d".repeat(64),
+  tokenHash: "e".repeat(64),
+  feeBps: 150,
+  protoSha: "f".repeat(40),
+  evidence: "synthetic",
+};
 test("signed claim seed supports full native int64 range", () => {
   for (const v of ["0", "-1", "-9223372036854775808", "9223372036854775807"]) {
     assert.equal(signed64(v), v);

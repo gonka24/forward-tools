@@ -20,7 +20,8 @@ use uint64 epoch field 1 and string recipient field 2. Claim uses creator field 
 int64 seed field 2 and uint64 epoch_index field 3. Seed is a public committed
 integer, not a wallet secret; simulation verifies native eligibility.
 
-External tools consume `unsigned.tx`; chain ID and account number are in the
+External tools consume `unsigned.tx`; `unsigned.signDoc` also provides direct
+protobuf body/auth bytes as base64, chain ID and account number. Chain ID and account number are in the
 surrounding envelope. Direct signing signs protobuf SignDoc. Return Cosmos CLI
 JSON or `{ "tx_bytes": "BASE64_TXRAW" }` to `tx import`. Signature verification
 also proves the expected chain/account, which are not stored inside TxRaw itself.

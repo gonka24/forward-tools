@@ -12,6 +12,7 @@ root=Path('/workspace/e2e-usdt-exact-r2-20261009')
 out=Path('/tools/.forward/local-live');out.mkdir(parents=True,exist_ok=True)
 supervisor=DinDSupervisor(Path('/workspace'))
 supervisor.start_dockerd()
+baseline=set(subprocess.run(['docker','ps','-aq'],capture_output=True,text=True,check=True).stdout.split())
 proxy=subprocess.Popen(['/opt/node/bin/node','/tools/test/integration/proxy.mjs'])
 os.environ.update(E2E_SETTLEMENT_TOKEN='mainnet-usdt',E2E_EXPECTED_GONKA_SHA='136041c81ea8ff38e7620d76af66a7c7fe7eec50',E2E_EXPECTED_PROTO_SHA='379bebced638aeb5e6077bfd51c986f898443832',E2E_EVIDENCE_MODEL='a8.evidence/e2e-immutable-source/2')
 try:
@@ -28,5 +29,11 @@ finally:
     ids=[]
     for run_id in run_ids:
         ids += subprocess.run(['docker','ps','-aq','--filter','label=io.gonka.a8.run-id='+run_id],capture_output=True,text=True).stdout.split()
+    current=set(subprocess.run(['docker','ps','-aq'],capture_output=True,text=True,check=True).stdout.split())
+    created=current-baseline
+    ids=list(set(ids)|created)
     if ids:subprocess.run(['docker','rm','-f',*ids],check=True)
+    remaining=set(subprocess.run(['docker','ps','-aq'],capture_output=True,text=True,check=True).stdout.split())-baseline
+    import json
+    (out/'cleanup.local.json').write_text(json.dumps({'created_container_ids':sorted(created),'removed_container_ids':sorted(ids),'remaining_owned_ids':sorted(remaining),'status':'CLEAN' if not remaining else 'INCOMPLETE'},indent=2))
     supervisor.stop_dockerd()

@@ -22,6 +22,7 @@ import {
   reconcile,
 } from "./transactions.js";
 import { InferencedAdapter } from "./adapters/inferenced.js";
+import { readiness } from "./readiness.js";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const args = process.argv.slice(2),
   group = args.shift(),
@@ -281,61 +282,16 @@ async function main() {
       result.postcondition = await reconcile(c, r.operation);
     if (result.status !== "INCLUDED") process.exitCode = 1;
   } else if (group === "report" && command === "readiness") {
-    const host = str("host")!,
-      blockers: string[] = [];
-    let verification: any, participant: any, routes: any, balance: any;
-    try {
-      verification = await c.verify();
-      participant = await c.host(host);
-      routes = await c.routes(host);
-      balance = await c.balance(host);
-      if (BigInt(balance) === 0n) blockers.push("GNK for gas missing");
-    } catch (e) {
-      blockers.push(e instanceof ToolError ? e.code : "CHECK_FAILED");
-    }
-    const signer = str("signer", false);
-    if (!signer || signer !== host)
-      blockers.push("Participant owner signing address not confirmed");
-    if (!opts.price || !opts.budget || !opts.epoch)
-      blockers.push("Commercial price, budget and epoch not agreed");
-    const terms =
-      opts.price && opts.budget && opts.epoch
-        ? {
-            price: decimal(str("price")!),
-            budget: decimal(str("budget")!),
-            epoch: Number(str("epoch")),
-          }
-        : null;
-    if (terms && verification) {
-      const E = await c.currentEpoch();
-      if (terms.epoch <= E || terms.epoch > E + 40)
-        blockers.push("Target epoch outside future window");
-    }
-    blockers.push("Signing adapter capabilities require owner rehearsal");
-    result = {
-      schema: "gonka24/forward-readiness/1",
-      status: blockers.length ? "INCOMPLETE" : "READY",
-      environmentReady: !!verification,
-      commercialTermsAgreed: !!terms,
-      operationPrepared: false,
-      signed: false,
-      included: false,
-      resultVerified: false,
-      host,
-      signer,
-      terms,
-      verification,
-      participant,
-      routes,
-      balanceNgonka: balance,
-      blockers,
-      nextSteps: [
-        "Confirm owner signing method",
-        "Prepare create-offer once terms agreed",
-        "After creation: verify Deal, set exact routing, then buyer funds",
-      ],
-    };
-    process.exitCode = 1;
+    const files = str("signing-proofs", false)?.split(",") ?? [];
+    result = await readiness(c, {
+      host: str("host")!,
+      signer: str("signer", false),
+      price: str("price", false),
+      budget: str("budget", false),
+      targetEpoch: opts.epoch ? Number(str("epoch")) : undefined,
+      proofs: await Promise.all(files.map(load)),
+    });
+    if (result.status !== "READY") process.exitCode = 1;
   } else throw new ToolError("USAGE", "Unknown command; run forward help", 2);
   if (opts.out) await save(str("out")!, result);
   print(result);

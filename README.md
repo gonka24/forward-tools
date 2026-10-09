@@ -51,6 +51,13 @@ node dist/src/cli.js report readiness --host HOST_ADDRESS --signer OWNER_ADDRESS
 эпоху `E` в пределах 40 от текущей. Цена включает удерживаемую из gross USDT
 комиссию 1,5%; Host net = gross − fee. Остаток бюджета возвращается Buyer.
 
+Отчёт можно дополнить `--price`, `--budget`, `--epoch` и
+`--signing-proofs FILE1,FILE2,FILE3`: проверенными подписанными envelope для
+contract execute, routing и native claim. Проверка подписей подтверждает
+возможность подписания этих форматов; сама по себе ничего не отправляет.
+Полную готовность всех форматов можно подтвердить по мере прохождения сделки;
+неполный общий отчёт не запрещает отдельно проверенную доступную операцию.
+
 ```sh
 node dist/src/cli.js deal prepare --action create-offer --sender HOST_ADDRESS --epoch E --price AGREED_PRICE --budget AGREED_BUDGET --out .forward/offer.local.json
 ```
