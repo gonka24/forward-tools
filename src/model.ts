@@ -2,7 +2,7 @@ export class ToolError extends Error {
   constructor(
     public code: string,
     message: string,
-    public exitCode = 1,
+    public exitCode = code === "USAGE" ? 2 : 1,
   ) {
     super(message);
   }

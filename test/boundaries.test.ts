@@ -29,6 +29,13 @@ test("missing or coerced network scalars cannot become success or epoch zero", (
   assert.equal(wireUint("0"), 0);
   assert.equal(wireUint(9), 9);
 });
+test("usage errors are distinct from incomplete network checks", () => {
+  assert.equal(new ToolError("USAGE", "synthetic option").exitCode, 2);
+  assert.equal(
+    new ToolError("INCOMPLETE", "synthetic missing fact").exitCode,
+    1,
+  );
+});
 const d: Deployment = {
   id: "synthetic",
   chainId: "synthetic-chain",

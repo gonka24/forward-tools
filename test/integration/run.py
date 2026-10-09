@@ -34,6 +34,7 @@ try:
         run_id='tools-'+scenario+'-'+stamp;run_ids.append(run_id)
         cmd[cmd.index('--run-id')+1]=run_id;cmd[cmd.index('--work-root')+1]+='-'+stamp
         cmd += ['--expected-gonka-sha','136041c81ea8ff38e7620d76af66a7c7fe7eec50','--expected-proto-sha','379bebced638aeb5e6077bfd51c986f898443832','--evidence-model','a8.evidence/e2e-immutable-source/2']
+        os.environ['TOOLS_LIVE_RUN_ID']=run_id
         before=inventory()
         try:subprocess.run(cmd,check=True)
         finally:cleanup(before)

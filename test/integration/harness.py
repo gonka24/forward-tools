@@ -97,7 +97,7 @@ def tool_tx(self, container, key, *args, gas):
     checked(['script','-q','-e','-c',shlex.join(cmd),'/dev/null'],input_text='CONFIRM\n')
     result=cli('tx','confirm','--receipt',str(r),out=Path(str(prefix)+'-result.local.json'))
     if result['status']!='INCLUDED' or result['postcondition']['status']!='RESULT_VERIFIED':raise RuntimeError('Tools local transaction not verified')
-    with (OUT/'operations.jsonl').open('a') as f:f.write(json.dumps({'action':action,'txHash':result['txHash'],'height':result['height'],'postcondition':result['postcondition']['status']})+'\n')
+    with (OUT/'operations.jsonl').open('a') as f:f.write(json.dumps({'runId':os.environ.get('TOOLS_LIVE_RUN_ID','unclassified-local-run'),'action':action,'txHash':result['txHash'],'height':result['height'],'postcondition':result['postcondition']['status']})+'\n')
     return self.wait_tx(result['txHash'])
 
 m.DockerGonka.tx=tool_tx
