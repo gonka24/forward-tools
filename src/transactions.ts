@@ -84,6 +84,9 @@ export function txJson(
   };
 }
 export function wire(u: Unsigned): TxRaw {
+  // The protobuf writer truncates oversized uint64 values; reject before encoding.
+  integer(u.gas, "gas", (1n << 64n) - 1n);
+  integer(u.sequence, "sequence", (1n << 64n) - 1n);
   const body = TxBody.fromPartial({
     messages: u.operation.messages.map(encoded),
     memo: "",
@@ -156,6 +159,7 @@ export async function exportTx(
   raw.signatures = [new Uint8Array(64)];
   const estimate = await estimateGas(c, u, raw, claimGas);
   const gas = estimate.gas;
+  integer(gas.toString(), "gas", (1n << 64n) - 1n);
   if (estimate.review) u.gasReview = estimate.review;
   requireFact(
     gas > 0n && gas <= integer(maxFee, "max fee"),
@@ -243,7 +247,7 @@ export async function verifySigned(
   );
   integer(u.accountNumber, "account", (1n << 64n) - 1n);
   integer(u.sequence, "sequence", (1n << 64n) - 1n);
-  integer(u.gas, "gas");
+  integer(u.gas, "gas", (1n << 64n) - 1n);
   integer(u.fee, "fee");
   requireFact(
     BigInt(u.gas) > 0n &&

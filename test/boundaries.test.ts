@@ -8,7 +8,7 @@ import { Chain, hash } from "../src/chain.js";
 import { Deployment, signed64, ToolError, wireUint } from "../src/model.js";
 import { CLAIM, encodeNative, decodeNative } from "../src/native.js";
 import { prepare } from "../src/operations.js";
-import { exportTx, checkFresh } from "../src/transactions.js";
+import { exportTx, checkFresh, wire } from "../src/transactions.js";
 const addr = toBech32("gonka", new Uint8Array(20).fill(9));
 const contract = toBech32("gonka", new Uint8Array(32).fill(10));
 test("missing or coerced network scalars cannot become success or epoch zero", () => {
@@ -118,6 +118,9 @@ test("export simulates and builds direct signing payload without any wallet exec
   assert.equal(u.signDoc?.chainId, d.chainId);
   assert.equal(u.signDoc?.accountNumber, "2");
   assert.equal(u.tx.auth_info.fee.amount[0].amount, "130");
+  const oversized = structuredClone(u);
+  oversized.gas = "18446744073709551616";
+  assert.throws(() => wire(oversized), /overflow/);
   await assert.rejects(exportTx(c, op, undefined, "129"), /fee limit/);
   c.account = async () => ({ account_number: "2", sequence: "4" });
   await assert.rejects(checkFresh(c, u), /sequence changed/);
