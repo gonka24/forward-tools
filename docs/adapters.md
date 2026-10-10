@@ -38,6 +38,8 @@ protobuf body/auth bytes as base64, chain ID and account number. Chain ID and ac
 surrounding envelope. Direct signing signs protobuf SignDoc. Return Cosmos CLI
 JSON or `{ "tx_bytes": "BASE64_TXRAW" }` to `tx import`. Signature verification
 also proves the expected chain/account, which are not stored inside TxRaw itself.
+The signature must be low-S: Cosmos SDK rejects high-S (malleable) signatures,
+so `tx import` rejects them too even though generic ECDSA verifiers accept them.
 
 Current adapter capabilities:
 

@@ -2,6 +2,7 @@ import { Chain, address, same } from "./chain.js";
 import {
   ACTIONS,
   Action,
+  Message,
   Operation,
   ToolError,
   requireFact,
@@ -51,11 +52,23 @@ export async function prepare(
     "Emergency review must be explicit boolean",
   );
   address(sender);
+  // Caller-supplied scalars are checked before any network query.
+  if (action === "create-offer") {
+    epoch(input.epoch);
+    economics(input.budget, input.price);
+  }
+  if (action === "claim") signed64(input.seed);
+  if (action === "withdraw")
+    requireFact(
+      ["host", "fee", "buyer"].includes(input.role),
+      "INVALID_ROLE",
+      "Choose host, fee or buyer",
+    );
   await c.verify();
   const height = await c.tip(),
     current = await c.currentEpoch(),
     d = c.deployment;
-  let messages: any[], terms: any;
+  let messages: Message[] | undefined, terms: any;
   if (action === "create-offer") {
     const E = epoch(input.epoch);
     requireFact(
@@ -112,6 +125,14 @@ export async function prepare(
           "HOST_AUTHORITY",
           "Routing requires participant owner/cold address",
         );
+        // A Cancelled Deal has no release, refund or settlement path: rewards routed to it
+        // would be stranded. Removing a route stays possible in every state.
+        if (action === "route")
+          requireFact(
+            ["open", "funded"].includes(s.status),
+            "STATE_GUARD",
+            "Routing requires an Open or Funded Deal; a cancelled Deal cannot release GNK",
+          );
         await c.host(sender);
         requireFact(
           current < E && E <= current + 40,
@@ -141,6 +162,11 @@ export async function prepare(
           "v1 native claim signs directly as participant owner",
         );
         requireFact(
+          ["open", "funded", "locked"].includes(s.status),
+          "STATE_GUARD",
+          "Claim would send rewards to a Deal that cannot settle or release them",
+        );
+        requireFact(
           current === E + 1,
           "EPOCH_WINDOW",
           "Native claim requires previous epoch",
@@ -155,7 +181,6 @@ export async function prepare(
           "ROUTING_MISMATCH",
           "Rewards must route to this Deal",
         );
-        signed64(input.seed);
         messages = [
           {
             typeUrl: CLAIM,
@@ -224,11 +249,6 @@ export async function prepare(
         msg = { settle_claim: {} };
         break;
       case "withdraw":
-        requireFact(
-          ["host", "fee", "buyer"].includes(input.role),
-          "INVALID_ROLE",
-          "Choose host, fee or buyer",
-        );
         requireFact(
           integer(payments[input.role].pending_micro_usdt, "pending debt") > 0n,
           "NO_PAYMENT",
@@ -313,7 +333,7 @@ export async function prepare(
       default:
         throw new ToolError("INVALID_ACTION", "Unsupported operation");
     }
-    messages = messages! ?? [execute(sender, deal, msg)];
+    messages ??= [execute(sender, deal, msg)];
   }
   return {
     schema: "gonka24/forward-operation/1",
@@ -368,7 +388,7 @@ export async function status(c: Chain, a: string) {
   await c.verify();
   const deal = await c.deal(a),
     current = await c.currentEpoch(),
-    E = deal.config.target_epoch;
+    E = epoch(deal.config.target_epoch);
   const actions: string[] = [];
   if (
     ["open", "funded"].includes(deal.state.status) &&
@@ -378,8 +398,11 @@ export async function status(c: Chain, a: string) {
     actions.push("Check routing and prioritize Lock");
   if (deal.state.status === "locked")
     actions.push("Check native claim before settlement or refund");
+  // A missing amount must not read as zero and hide a pending payment.
   for (const role of ["host", "fee", "buyer"])
-    if (BigInt(deal.payments[role].pending_micro_usdt) > 0n)
+    if (
+      integer(deal.payments?.[role]?.pending_micro_usdt, `${role} pending`) > 0n
+    )
       actions.push(`Withdraw USDT for ${role} in separate transaction`);
   const bank = await c.balance(a);
   if (

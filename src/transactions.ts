@@ -20,9 +20,11 @@ import {
   Operation,
   Unsigned,
   Signed,
+  ToolError,
   requireFact,
   integer,
   wireUint,
+  UINT64_MAX,
 } from "./model.js";
 import { revalidate, EXEC } from "./operations.js";
 import { encodeNative, ROUTE, CLAIM } from "./native.js";
@@ -85,8 +87,8 @@ export function txJson(
 }
 export function wire(u: Unsigned): TxRaw {
   // The protobuf writer truncates oversized uint64 values; reject before encoding.
-  integer(u.gas, "gas", (1n << 64n) - 1n);
-  integer(u.sequence, "sequence", (1n << 64n) - 1n);
+  integer(u.gas, "gas", UINT64_MAX);
+  integer(u.sequence, "sequence", UINT64_MAX);
   const body = TxBody.fromPartial({
     messages: u.operation.messages.map(encoded),
     memo: "",
@@ -159,7 +161,7 @@ export async function exportTx(
   raw.signatures = [new Uint8Array(64)];
   const estimate = await estimateGas(c, u, raw, claimGas);
   const gas = estimate.gas;
-  integer(gas.toString(), "gas", (1n << 64n) - 1n);
+  integer(gas.toString(), "gas", UINT64_MAX);
   if (estimate.review) u.gasReview = estimate.review;
   requireFact(
     gas > 0n && gas <= integer(maxFee, "max fee"),
@@ -244,9 +246,9 @@ export function validateUnsigned(u: Unsigned) {
     "INVALID_UNSIGNED",
     "Unsigned transaction disagrees with operation",
   );
-  integer(u.accountNumber, "account", (1n << 64n) - 1n);
-  integer(u.sequence, "sequence", (1n << 64n) - 1n);
-  integer(u.gas, "gas", (1n << 64n) - 1n);
+  integer(u.accountNumber, "account", UINT64_MAX);
+  integer(u.sequence, "sequence", UINT64_MAX);
+  integer(u.gas, "gas", UINT64_MAX);
   integer(u.fee, "fee");
   requireFact(
     BigInt(u.gas) > 0n &&
@@ -269,6 +271,14 @@ export function validateUnsigned(u: Unsigned) {
     );
   return expected;
 }
+// secp256k1 group order; Cosmos SDK rejects signatures with S above half of it.
+const SECP256K1_ORDER =
+  0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n;
+function lowS(signature: Uint8Array) {
+  let s = 0n;
+  for (const byte of signature.subarray(32)) s = (s << 8n) | BigInt(byte);
+  return s <= SECP256K1_ORDER >> 1n;
+}
 export async function verifySigned(
   u: Unsigned,
   raw64: string,
@@ -285,6 +295,12 @@ export async function verifySigned(
     raw.signatures.length === 1 && raw.signatures[0].length === 64,
     "INVALID_SIGNATURE",
     "One secp256k1 signature required",
+  );
+  // cosmjs accepts malleable high-S signatures; the chain does not.
+  requireFact(
+    lowS(raw.signatures[0]),
+    "INVALID_SIGNATURE",
+    "High-S signature is rejected by Cosmos SDK; re-sign with a canonical low-S signer",
   );
   const signDoc = SignDoc.fromPartial({
     bodyBytes: raw.bodyBytes,
@@ -322,6 +338,11 @@ export async function checkFresh(c: Chain, u: Unsigned) {
     "STALE_TRANSACTION",
     "Account/sequence changed: export again, do not replay",
   );
+  requireFact(
+    BigInt(await c.balance(u.operation.sender)) >= BigInt(u.fee),
+    "INSUFFICIENT_GAS",
+    "Signer GNK balance no longer covers the fee",
+  );
   const sim = wire(u);
   sim.signatures = [new Uint8Array(64)];
   if (u.gasReview)
@@ -340,6 +361,8 @@ export async function checkFresh(c: Chain, u: Unsigned) {
     "Gas estimate changed: export again",
   );
 }
+// Cosmos SDK ErrTxInMempoolCache (codespace "sdk"): the node already has these bytes.
+const TX_IN_MEMPOOL_CACHE = 19;
 export async function broadcast(
   c: Chain,
   s: Signed,
@@ -376,6 +399,14 @@ export async function broadcast(
   );
   receipt.response = t;
   const resultCode = wireUint(t.code, 4294967295);
+  // The node already holds these exact bytes (typically a re-broadcast after a lost
+  // response). The earlier submission may still be included: confirm, never resubmit.
+  if (resultCode === TX_IN_MEMPOOL_CACHE && t.codespace === "sdk") {
+    receipt.reason =
+      "Node already has this exact transaction; confirm the same hash and do not resubmit";
+    await save(receipt);
+    return receipt;
+  }
   receipt.status = resultCode === 0 ? "SUBMITTED" : "REJECTED";
   await save(receipt);
   requireFact(
@@ -386,58 +417,90 @@ export async function broadcast(
   return receipt;
 }
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const blockHeight = (value: unknown) =>
+  typeof value === "string" && /^(0|[1-9]\d*)$/.test(value)
+    ? BigInt(value)
+    : undefined;
+/** Outcome of one bounded scan; INCOMPLETE always carries a resume cursor in nextHeight. */
+export interface Confirmation {
+  status: "INCLUDED" | "FAILED" | "INCOMPLETE";
+  code?: string;
+  txHash: string;
+  fromHeight?: string;
+  nextHeight?: string;
+  reason?: string;
+  height?: string;
+  index?: number;
+  blockId?: unknown;
+  result?: any;
+}
 export async function confirm(
   c: Chain,
   txHash: string,
   fromHeight: string,
   timeoutMs = 120000,
   maxBlocks = 5000,
-) {
+): Promise<Confirmation> {
   requireFact(
     /^[A-Fa-f0-9]{64}$/.test(txHash),
     "INVALID_HASH",
     "64-hex transaction hash required",
   );
-  let height = integer(fromHeight, "from height", (1n << 64n) - 1n);
+  requireFact(
+    Number.isSafeInteger(timeoutMs) &&
+      timeoutMs > 0 &&
+      timeoutMs <= 900000 &&
+      Number.isSafeInteger(maxBlocks) &&
+      maxBlocks > 0 &&
+      maxBlocks <= 5000,
+    "INVALID_LIMIT",
+    "Confirmation limits invalid",
+  );
+  let height = integer(fromHeight, "from height", UINT64_MAX);
   requireFact(
     height > 0n,
     "INVALID_HEIGHT",
     "Positive starting height required",
   );
-  const start = height,
+  const target = txHash.toUpperCase(),
+    start = height,
     deadline = Date.now() + timeoutMs;
-  requireFact(
-    timeoutMs > 0 && timeoutMs <= 900000 && maxBlocks > 0 && maxBlocks <= 5000,
-    "INVALID_LIMIT",
-    "Confirmation limits invalid",
-  );
+  // Every unfinished scan returns a cursor; the caller resumes the same hash from it.
+  const incomplete = (code: string, reason: string): Confirmation => ({
+    status: "INCOMPLETE",
+    code,
+    txHash: target,
+    fromHeight,
+    nextHeight: height.toString(),
+    reason,
+  });
   while (Date.now() < deadline) {
     const tip = BigInt(await c.tip());
     while (height <= tip && Date.now() < deadline) {
       if (height - start >= BigInt(maxBlocks))
-        return {
-          status: "INCOMPLETE",
-          code: "SCAN_LIMIT",
-          txHash,
-          fromHeight,
-          nextHeight: height.toString(),
-          reason:
-            "Block scan limit reached; continue same hash, do not resubmit",
-        };
-      const b = (await c.rpc(`block?height=${height}`)).result;
+        return incomplete(
+          "SCAN_LIMIT",
+          "Block scan limit reached; continue same hash, do not resubmit",
+        );
+      const b = (await c.rpc(`block?height=${height}`))?.result;
       requireFact(
         b?.block?.header?.chain_id === c.deployment.chainId &&
-          BigInt(b.block.header.height) === height,
+          blockHeight(b.block.header.height) === height,
         "WRONG_CHAIN",
         "Block identity differs",
       );
-      const txs = b.block.data.txs ?? [];
+      const txs = b.block.data?.txs ?? [];
+      requireFact(
+        Array.isArray(txs),
+        "INCOMPLETE",
+        "Block transaction list malformed",
+      );
       for (let i = 0; i < txs.length; i++)
-        if (hash(fromBase64(txs[i])).toUpperCase() === txHash.toUpperCase()) {
+        if (hash(fromBase64(txs[i])).toUpperCase() === target) {
           const results = (await c.rpc(`block_results?height=${height}`))
-            .result;
+            ?.result;
           requireFact(
-            BigInt(results.height) === height &&
+            blockHeight(results?.height) === height &&
               results.txs_results?.[i]?.code !== undefined,
             "INCOMPLETE",
             "Block result missing",
@@ -447,7 +510,7 @@ export async function confirm(
           return {
             status: resultCode === 0 ? "INCLUDED" : "FAILED",
             code: resultCode === 0 ? undefined : "TX_FAILED",
-            txHash: txHash.toUpperCase(),
+            txHash: target,
             height: height.toString(),
             index: i,
             blockId: b.block_id,
@@ -458,13 +521,71 @@ export async function confirm(
     }
     await sleep(1500);
   }
-  return {
-    status: "INCOMPLETE",
-    txHash,
-    fromHeight,
-    nextHeight: height.toString(),
-    reason: "Confirmation timeout; continue same hash, do not resubmit",
+  return incomplete(
+    "CONFIRMATION_TIMEOUT",
+    "Confirmation timeout; continue same hash, do not resubmit",
+  );
+}
+/** Fields owned by a confirmation run; a resumed run must not inherit stale values. */
+const CONFIRMATION_FIELDS = [
+  "status",
+  "code",
+  "reason",
+  "nextHeight",
+  "scanFromHeight",
+  "height",
+  "index",
+  "blockId",
+  "result",
+  "postcondition",
+];
+/**
+ * Confirms a saved broadcast receipt, or a previous INCOMPLETE result, for the same hash.
+ * The output is itself a valid receipt for the next resume.
+ */
+export async function confirmReceipt(
+  c: Chain,
+  record: any,
+  timeoutMs?: number,
+  maxBlocks?: number,
+) {
+  requireFact(
+    record?.signed?.unsigned &&
+      typeof record.signed.txRaw === "string" &&
+      same(record.signed.unsigned.operation, record.operation) &&
+      hash(fromBase64(record.signed.txRaw)).toUpperCase() === record.txHash,
+    "RECEIPT_BINDING",
+    "Receipt operation and signed transaction hash must match",
+  );
+  await verifySigned(record.signed.unsigned, record.signed.txRaw);
+  requireFact(
+    same(record.operation.deployment, c.deployment),
+    "DEPLOYMENT_MISMATCH",
+    "Receipt deployment differs",
+  );
+  const submission = Object.fromEntries(
+      Object.entries(record).filter(([k]) => !CONFIRMATION_FIELDS.includes(k)),
+    ),
+    cursor = record.nextHeight ?? record.fromHeight;
+  const result: any = {
+    ...submission,
+    ...(await confirm(c, record.txHash, cursor, timeoutMs, maxBlocks)),
+    // Keep the broadcast-time height; the scan start is recorded separately.
+    fromHeight: record.fromHeight,
+    scanFromHeight: cursor,
   };
+  if (result.status === "INCLUDED")
+    try {
+      result.postcondition = await reconcile(c, record.operation);
+    } catch (e) {
+      // Inclusion is already a chain fact; an unverifiable postcondition must not discard it.
+      result.postcondition = {
+        status: "UNVERIFIED",
+        code: e instanceof ToolError ? e.code : "UNEXPECTED",
+        message: e instanceof Error ? e.message : String(e),
+      };
+    }
+  return result;
 }
 export async function reconcile(c: Chain, op: Operation) {
   const i = op.input,
@@ -485,26 +606,27 @@ export async function reconcile(c: Chain, op: Operation) {
     return { status: "RESULT_VERIFIED", deal: a };
   }
   if (op.action === "route" || op.action === "remove-route") {
-    const routes = await c.routes(op.sender);
-    const selected = routes.find(
-      (r) => Number(r.epoch) === op.terms.target_epoch,
-    );
+    const routes = await c.routes(op.sender),
+      E = op.terms.target_epoch;
+    const selected = routes.find((r) => Number(r.epoch) === E);
     requireFact(
       op.action === "route" ? selected?.recipient === i.deal : !selected,
       "POSTCONDITION_FAILED",
       "Routing not applied",
     );
-    const other = op.terms.previousRoutes.filter(
-      (r: any) => Number(r.epoch) !== op.terms.target_epoch,
-    );
-    for (const old of other)
+    // MsgSetClaimRecipients only accepts future epochs, so a row at or before the current
+    // epoch can disappear only through native pruning. A changed row, or a missing
+    // row that is still in the future, means something else modified routing.
+    const current = await c.currentEpoch();
+    for (const old of op.terms.previousRoutes) {
+      if (Number(old.epoch) === E) continue;
+      const now = routes.find((r) => r.epoch === old.epoch);
       requireFact(
-        routes.some(
-          (r) => r.epoch === old.epoch && r.recipient === old.recipient,
-        ),
+        now ? now.recipient === old.recipient : Number(old.epoch) <= current,
         "POSTCONDITION_FAILED",
-        "Unrelated routing changed (or pruned); inspect receipt",
+        "Unrelated routing changed; inspect receipt",
       );
+    }
     return { status: "RESULT_VERIFIED", routes };
   }
   if (op.action === "claim") {

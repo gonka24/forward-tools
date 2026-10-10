@@ -13,6 +13,7 @@ import {
   epoch,
   integer,
   wireUint,
+  UINT64_MAX,
 } from "./model.js";
 export const NATIVE = "/productscience/inference/inference/";
 export type Fetcher = (url: string, init?: RequestInit) => Promise<any>;
@@ -49,6 +50,63 @@ export function address(a: string) {
 }
 export function hash(b: Uint8Array) {
   return toHex(sha256(b));
+}
+const HEX40 = /^[0-9a-f]{40}$/,
+  HEX64 = /^[0-9a-f]{64}$/;
+function nodeUrl(value: unknown) {
+  if (typeof value !== "string" || value.endsWith("/")) return false;
+  try {
+    const u = new URL(value);
+    return (
+      ["https:", "http:"].includes(u.protocol) &&
+      u.username === "" &&
+      u.password === "" &&
+      u.search === "" &&
+      u.hash === ""
+    );
+  } catch {
+    return false;
+  }
+}
+/**
+ * A deployment document pins every identity that later checks compare against.
+ * Reject incomplete documents up front: an empty node list would otherwise make
+ * verification vacuously succeed, and malformed pins would only fail later and less clearly.
+ */
+export function validateDeployment(d: any): Deployment {
+  const field = (ok: unknown, name: string) =>
+    requireFact(
+      ok,
+      "INVALID_DEPLOYMENT",
+      `Deployment ${name} missing or malformed`,
+    );
+  field(d && typeof d === "object" && !Array.isArray(d), "document");
+  field(typeof d.id === "string" && /^[A-Za-z0-9-]+$/.test(d.id), "id");
+  field(typeof d.chainId === "string" && d.chainId.length > 0, "chainId");
+  field(
+    Array.isArray(d.nodes) && d.nodes.length > 0 && d.nodes.every(nodeUrl),
+    "nodes",
+  );
+  for (const k of ["gonkaSha", "contractsSha", "protoSha"])
+    field(typeof d[k] === "string" && HEX40.test(d[k]), k);
+  for (const k of ["factoryHash", "dealHash", "tokenHash"])
+    field(typeof d[k] === "string" && HEX64.test(d[k]), k);
+  for (const k of ["factoryCodeId", "dealCodeId"])
+    field(Number.isSafeInteger(d[k]) && d[k] > 0, k);
+  field(
+    Number.isSafeInteger(d.feeBps) && d.feeBps >= 0 && d.feeBps <= 10000,
+    "feeBps",
+  );
+  for (const k of ["factory", "token", "feeRecipient"]) {
+    let valid = false;
+    try {
+      // Chain responses are lowercase; an uppercase pin could never match them.
+      valid = address(d[k]) === d[k].toLowerCase();
+    } catch {}
+    field(valid, k);
+  }
+  field(typeof d.evidence === "string", "evidence");
+  return d;
 }
 export function same(a: any, b: any) {
   return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
@@ -112,7 +170,7 @@ export class Chain {
       "STALE_RPC",
       "RPC tip stale",
     );
-    integer(r.sync_info.latest_block_height, "height", (1n << 64n) - 1n);
+    integer(r.sync_info.latest_block_height, "height", UINT64_MAX);
     return r.sync_info.latest_block_height as string;
   }
   async smart(a: string, msg: any) {
@@ -142,7 +200,7 @@ export class Chain {
     return r.code_info;
   }
   async verify() {
-    const d = this.deployment;
+    const d = validateDeployment(this.deployment);
     const receipts = [];
     for (const node of d.nodes) {
       const c = new Chain(d, this.fetcher, node),
@@ -269,8 +327,8 @@ export class Chain {
       "UNSUPPORTED_ACCOUNT",
       "Only direct secp256k1 BaseAccount supported by this transaction exporter",
     );
-    integer(r.account_number, "account number", (1n << 64n) - 1n);
-    integer(r.sequence, "sequence", (1n << 64n) - 1n);
+    integer(r.account_number, "account number", UINT64_MAX);
+    integer(r.sequence, "sequence", UINT64_MAX);
     return r;
   }
   async summary(host: string, E: number) {
@@ -285,8 +343,8 @@ export class Chain {
       "SUMMARY_INVALID",
       "Claim summary identity or shape differs",
     );
-    integer(s.earned_coins, "earned coins", (1n << 64n) - 1n);
-    integer(s.rewarded_coins, "reward coins", (1n << 64n) - 1n);
+    integer(s.earned_coins, "earned coins", UINT64_MAX);
+    integer(s.rewarded_coins, "reward coins", UINT64_MAX);
     return s;
   }
   async deal(a: string) {
@@ -310,6 +368,8 @@ export class Chain {
       "DEAL_MISMATCH",
       "Deal terms/protobuf pin differs",
     );
+    // Callers derive windows such as E + 5; a non-numeric epoch must not concatenate.
+    epoch(config.target_epoch);
     requireFact(
       (
         await this.smart(d.factory, {

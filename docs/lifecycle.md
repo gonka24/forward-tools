@@ -8,11 +8,11 @@ contract chooses the recipient and amount, regardless of the caller.
 | CLI action | Sender | When | Effect |
 | --- | --- | --- | --- |
 | `create-offer` | Compute participant owner | Future E, at most current + 40 | Factory creates and registers an Open Deal with immutable terms |
-| `route` | Same participant owner | Before E | Sets only this epoch's reward destination to the verified Deal |
-| `remove-route` | Same participant owner | Before E | Removes only this epoch's destination |
+| `route` | Same participant owner | Before E; Deal Open or Funded | Sets only this epoch's reward destination to the verified Deal |
+| `remove-route` | Same participant owner | Before E; any Deal state | Removes only this epoch's destination |
 | `fund` | Buyer | Open, before E, exact routing | CW20 Send with Fund hook; exact budget binds Buyer |
 | `lock` | Caller | Open/Funded, E..E+4, exact routing | Saves recipient proof; missing Buyer is not fabricated |
-| `claim` | Participant owner in v1 | E+1, not already claimed, exact routing | Native rewards claim using the participant's committed integer seed |
+| `claim` | Participant owner in v1 | E+1, Deal Open/Funded/Locked, not already claimed, exact routing | Native rewards claim using the participant's committed integer seed |
 | `settle` | Caller | Locked proof and confirmed native claim | Freezes reward allocation and records independent USDT debts |
 | `withdraw` | Caller | Chosen role has positive pending USDT | Pays immutable Host, Fee or Buyer recipient; a separate transaction per role |
 | `release` | Caller | Releasing/Completed/Refunded/Expired with liquid GNK | Releases available GNK under the frozen allocation policy |

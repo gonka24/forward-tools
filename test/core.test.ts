@@ -1,10 +1,12 @@
 /** Synthetic fixtures only. No network, Docker, or live chain calls. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { DirectSecp256k1Wallet } from "@cosmjs/proto-signing";
+import { Secp256k1, Secp256k1Signature, sha256 } from "@cosmjs/crypto";
 import { toBech32 } from "@cosmjs/encoding";
 import { TxRaw, SignDoc } from "cosmjs-types/cosmos/tx/v1beta1/tx";
-import { Chain, hash } from "../src/chain.js";
+import { Chain, hash, validateDeployment } from "../src/chain.js";
 import {
   decimal,
   economics,
@@ -19,9 +21,11 @@ import {
   verifySigned,
   txJson,
   confirm,
+  confirmReceipt,
   broadcast,
   exportTx,
   checkFresh,
+  reconcile,
 } from "../src/transactions.js";
 const A = toBech32("gonka", new Uint8Array(20).fill(1)),
   B = toBech32("gonka", new Uint8Array(20).fill(2)),
@@ -322,6 +326,28 @@ test("signature binds messages fee chain account sender and sequence", async () 
     );
     await assert.rejects(verifySigned(changed, bytes));
   }
+  // Malleate S to n - S: still valid ECDSA, accepted by cosmjs, rejected by Cosmos SDK.
+  const order =
+      0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n,
+    low = raw.signatures[0],
+    s = BigInt("0x" + Buffer.from(low.subarray(32)).toString("hex")),
+    high = Buffer.concat([
+      low.subarray(0, 32),
+      Buffer.from((order - s).toString(16).padStart(64, "0"), "hex"),
+    ]);
+  assert.equal(
+    await Secp256k1.verifySignature(
+      Secp256k1Signature.fromFixedLength(high),
+      sha256(SignDoc.encode(doc).finish()),
+      a.pubkey,
+    ),
+    true,
+  );
+  raw.signatures = [high];
+  await assert.rejects(
+    verifySigned(u, Buffer.from(TxRaw.encode(raw).finish()).toString("base64")),
+    { code: "INVALID_SIGNATURE", message: /High-S/ },
+  );
 });
 test("broadcast persists identity before submission and height zero never means inclusion", async () => {
   const { c } = fixture("funded", 10);
@@ -378,6 +404,119 @@ test("broadcast persists identity before submission and height zero never means 
   assert.equal(records.length, 1);
   assert.equal(records[0].status, "SUBMISSION_UNKNOWN");
   assert.equal(submitted, 2);
+});
+/** A signed Lock for the funded fixture; `reply` sets the synthetic broadcast response. */
+async function signedLock() {
+  const f = fixture("funded", 10),
+    wallet = await DirectSecp256k1Wallet.fromKey(
+      new Uint8Array(32).fill(8),
+      "gonka",
+    ),
+    [a] = await wallet.getAccounts();
+  let response: any;
+  f.c.account = async () => ({ account_number: "2", sequence: "3" });
+  f.c.api = async (path) =>
+    path.endsWith("simulate") ? { gas_info: { gas_used: "10" } } : response;
+  const u = await exportTx(
+    f.c,
+    await prepare(f.c, "lock", a.address, { deal: D }),
+    Buffer.from(a.pubkey).toString("base64"),
+  );
+  const raw = wire(u),
+    signed = await wallet.signDirect(
+      a.address,
+      SignDoc.fromPartial({
+        bodyBytes: raw.bodyBytes,
+        authInfoBytes: raw.authInfoBytes,
+        chainId: deployment.chainId,
+        accountNumber: 2n,
+      }),
+    );
+  raw.signatures = [Buffer.from(signed.signature.signature, "base64")];
+  const raw64 = Buffer.from(TxRaw.encode(raw).finish()).toString("base64");
+  return {
+    c: f.c,
+    state: f.s,
+    signedTx: await verifySigned(u, raw64),
+    raw64,
+    digest: hash(Buffer.from(raw64, "base64")).toUpperCase(),
+    reply: (r: any) => (response = r),
+  };
+}
+test("re-broadcast of bytes the node already holds stays unknown and points to confirmation", async () => {
+  const { c, signedTx, digest, reply } = await signedLock();
+  const records: any[] = [];
+  const save = async (r: any) => {
+    records.push(structuredClone(r));
+  };
+  reply({ tx_response: { txhash: digest, code: 19, codespace: "sdk" } });
+  const receipt = await broadcast(c, signedTx, save);
+  assert.equal(receipt.status, "SUBMISSION_UNKNOWN");
+  assert.match(receipt.reason, /do not resubmit/);
+  assert.equal(records.at(-1).status, "SUBMISSION_UNKNOWN");
+  assert.equal(records.at(-1).response.code, 19);
+  // The same number from another module's codespace is an ordinary rejection.
+  reply({
+    tx_response: {
+      txhash: digest,
+      code: 19,
+      codespace: "wasm",
+      raw_log: "synthetic",
+    },
+  });
+  await assert.rejects(broadcast(c, signedTx, save), { code: "TX_REJECTED" });
+  assert.equal(records.at(-1).status, "REJECTED");
+});
+test("resumed confirmation keeps broadcast height, drops stale cursor fields and records postcondition failures", async () => {
+  const { c, state, signedTx, raw64, digest, reply } = await signedLock();
+  reply({ tx_response: { txhash: digest, code: 0, height: "0" } });
+  const receipt = await broadcast(c, signedTx, async () => {});
+  c.tip = async () => "101";
+  c.rpc = async (path) => {
+    const height = path.split("=")[1];
+    return path.startsWith("block?")
+      ? {
+          result: {
+            block: {
+              header: { height, chain_id: deployment.chainId },
+              data: { txs: height === "101" ? [raw64] : [] },
+            },
+          },
+        }
+      : { result: { height, txs_results: [{ code: 0 }] } };
+  };
+  // JSON round-trips model the files passed between CLI runs.
+  const first = await confirmReceipt(
+    c,
+    JSON.parse(JSON.stringify(receipt)),
+    10000,
+    1,
+  );
+  assert.equal(first.status, "INCOMPLETE");
+  assert.equal(first.code, "SCAN_LIMIT");
+  assert.equal(first.nextHeight, "101");
+  assert.equal(first.fromHeight, "100");
+  const saved = JSON.parse(JSON.stringify(first));
+  const resumed = await confirmReceipt(c, saved, 10000, 1);
+  assert.equal(resumed.status, "INCLUDED");
+  assert.equal(resumed.height, "101");
+  assert.equal(resumed.fromHeight, "100");
+  assert.equal(resumed.scanFromHeight, "101");
+  for (const stale of ["code", "reason", "nextHeight"])
+    assert.equal(resumed[stale], undefined, stale);
+  // The fixture Deal is not locked: the failure is recorded, inclusion is kept.
+  assert.equal(resumed.postcondition.status, "UNVERIFIED");
+  assert.equal(resumed.postcondition.code, "POSTCONDITION_FAILED");
+  state.recipient_locked = true;
+  assert.equal(
+    (await confirmReceipt(c, saved, 10000, 1)).postcondition.status,
+    "RESULT_VERIFIED",
+  );
+  const tampered = structuredClone(saved);
+  tampered.txHash = "A".repeat(64);
+  await assert.rejects(confirmReceipt(c, tampered), {
+    code: "RECEIPT_BINDING",
+  });
 });
 
 test("completed state with missing native vesting data is incomplete rather than fully observed", async () => {
@@ -486,8 +625,10 @@ test("missing block result never passes confirmation", async () => {
 test("confirmation timeout returns resume cursor without submission", async () => {
   const c = new Chain(deployment);
   c.tip = async () => "99";
-  const r: any = await confirm(c, "a".repeat(64), "100", 1);
+  const r = await confirm(c, "a".repeat(64), "100", 1);
   assert.equal(r.status, "INCOMPLETE");
+  assert.equal(r.code, "CONFIRMATION_TIMEOUT");
+  assert.equal(r.txHash, "A".repeat(64));
   assert.equal(r.nextHeight, "100");
 });
 
@@ -544,4 +685,106 @@ test("deployment verification refuses runtime change before any contract checks"
 test("missing native routing response is incomplete rather than agreement", async () => {
   const c = new Chain(deployment, async () => ({}));
   await assert.rejects(c.routes(A), /missing entries/);
+});
+test("rewards cannot be routed or claimed into a cancelled Deal, but a mistaken route can be removed", async () => {
+  // Cancelled has no release, refund or settlement path: routed GNK would be stranded.
+  const before = fixture("cancelled", 9);
+  await assert.rejects(prepare(before.c, "route", A, { deal: D }), {
+    code: "STATE_GUARD",
+  });
+  const removal = await prepare(before.c, "remove-route", A, { deal: D });
+  assert.equal(removal.messages[0].value.entries[0].recipient, "");
+  const after = fixture("cancelled", 11);
+  await assert.rejects(prepare(after.c, "claim", A, { deal: D, seed: "7" }), {
+    code: "STATE_GUARD",
+  });
+});
+test("malformed caller input is rejected before any network query", async () => {
+  const { c } = fixture("locked", 11);
+  let queries = 0;
+  c.verify = async () => {
+    queries++;
+    return { status: "VERIFIED", deployment: "synthetic", observations: [] };
+  };
+  for (const [action, input, code] of [
+    ["claim", { deal: D, seed: "1.5" }, "INVALID_SEED"],
+    ["withdraw", { deal: D, role: "admin" }, "INVALID_ROLE"],
+    ["create-offer", { epoch: 11, price: "0", budget: "1" }, "INVALID_AMOUNT"],
+    ["create-offer", { epoch: "11", price: "1", budget: "1" }, "INVALID_EPOCH"],
+  ] as const)
+    await assert.rejects(prepare(c, action, A, input), { code });
+  assert.equal(queries, 0);
+});
+test("status never reads a missing pending payment as zero", async () => {
+  const { c, k, s } = fixture("completed", 12);
+  c.smart = async () => ({
+    remaining_vesting_ngonka: "0",
+    liquid_balance_ngonka: "0",
+  });
+  c.deal = async () => ({
+    config: k,
+    state: s,
+    payments: {
+      host: { pending_micro_usdt: "" },
+      fee: { pending_micro_usdt: "0" },
+      buyer: { pending_micro_usdt: "0" },
+    },
+  });
+  await assert.rejects(status(c, D), { code: "INVALID_AMOUNT" });
+});
+test("routing postcondition tolerates pruning of past rows but not changes to other future rows", async () => {
+  const { c, setRoutes } = fixture("open", 9);
+  setRoutes([
+    { epoch: "8", recipient: B },
+    { epoch: "12", recipient: B },
+  ]);
+  const op = await prepare(c, "route", A, { deal: D });
+  // Epoch 8 is not in the future, so only native pruning can remove it.
+  setRoutes([
+    { epoch: "10", recipient: D },
+    { epoch: "12", recipient: B },
+  ]);
+  assert.equal((await reconcile(c, op)).status, "RESULT_VERIFIED");
+  for (const routes of [
+    [{ epoch: "12", recipient: B }],
+    [
+      { epoch: "10", recipient: D },
+      { epoch: "12", recipient: A },
+    ],
+    [{ epoch: "10", recipient: D }],
+  ]) {
+    setRoutes(routes);
+    await assert.rejects(reconcile(c, op), { code: "POSTCONDITION_FAILED" });
+  }
+});
+test("deployment documents with missing pins or no nodes cannot verify vacuously", async () => {
+  let fetched = 0;
+  const empty = new Chain({ ...deployment, nodes: [] }, async () => {
+    fetched++;
+    return {};
+  });
+  await assert.rejects(empty.verify(), { code: "INVALID_DEPLOYMENT" });
+  assert.equal(fetched, 0);
+  for (const change of [
+    { id: "../mainnet-v1" },
+    { chainId: "" },
+    { nodes: ["ftp://synthetic.invalid"] },
+    { nodes: ["https://synthetic.invalid/"] },
+    { gonkaSha: "A".repeat(40) },
+    { dealHash: "d".repeat(63) },
+    { factoryCodeId: "1" },
+    { feeBps: 10001 },
+    { factory: deployment.factory.toUpperCase() },
+    { token: "gonka1invalid" },
+  ])
+    assert.throws(() => validateDeployment({ ...deployment, ...change }), {
+      code: "INVALID_DEPLOYMENT",
+    });
+  const registry = JSON.parse(
+    readFileSync(
+      new URL("../../deployments/mainnet-v1.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  assert.equal(validateDeployment(registry).id, "mainnet-v1");
 });

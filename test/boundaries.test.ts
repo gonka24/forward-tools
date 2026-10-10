@@ -2,6 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import protobuf from "protobufjs/minimal.js";
 import { DirectSecp256k1Wallet } from "@cosmjs/proto-signing";
 import { toBech32 } from "@cosmjs/encoding";
 import { Chain, hash } from "../src/chain.js";
@@ -70,18 +71,42 @@ test("signed claim seed supports full native int64 range", () => {
     assert.throws(() => signed64(v));
 });
 test("browser reusable core has no Node builtins or Buffer dependency", () => {
+  // Every module re-exported by src/index.ts.
   for (const file of [
     "chain",
     "operations",
     "transactions",
     "native",
     "model",
+    "readiness",
+    "signed-json",
   ]) {
     const code = readFileSync(
       new URL(`../../src/${file}.ts`, import.meta.url),
       "utf8",
     );
     assert.doesNotMatch(code, /from ["']node:|\bBuffer\./);
+  }
+});
+test("native int64 seeds encode exactly and refuse a runtime without long.js", () => {
+  // Protobuf varints of int64 max and -1 (ten-byte two's complement).
+  const claim = (seed: string) =>
+    Buffer.from(
+      encodeNative(CLAIM, { creator: "x", seed, epoch_index: "42" }),
+    ).toString("hex");
+  assert.equal(claim("9223372036854775807"), "0a017810ffffffffffffffff7f182a");
+  assert.equal(claim("-1"), "0a017810ffffffffffffffffff01182a");
+  const saved = protobuf.util.Long;
+  try {
+    protobuf.util.Long = null as any;
+    assert.throws(() => claim("9223372036854775807"), {
+      code: "UNSUPPORTED_RUNTIME",
+    });
+    assert.throws(() => decodeNative(CLAIM, new Uint8Array()), {
+      code: "UNSUPPORTED_RUNTIME",
+    });
+  } finally {
+    protobuf.util.Long = saved;
   }
 });
 test("export simulates and builds direct signing payload without any wallet executable", async (t) => {
@@ -188,6 +213,9 @@ test("export simulates and builds direct signing payload without any wallet exec
   oversized.gas = "18446744073709551616";
   assert.throws(() => wire(oversized), /overflow/);
   await assert.rejects(exportTx(c, op, undefined, "129"), /fee limit/);
+  c.balance = async () => "129";
+  await assert.rejects(checkFresh(c, u), { code: "INSUFFICIENT_GAS" });
+  c.balance = async () => "1000";
   c.account = async () => ({ account_number: "2", sequence: "4" });
   await assert.rejects(checkFresh(c, u), /sequence changed/);
 });
