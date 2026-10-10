@@ -489,12 +489,20 @@ export async function confirm(
         "WRONG_CHAIN",
         "Block identity differs",
       );
-      const txs = b.block.data?.txs ?? [];
-      requireFact(
-        Array.isArray(txs),
-        "INCOMPLETE",
-        "Block transaction list malformed",
-      );
+      const data = b.block.data;
+      // Tendermint uses txs:null for an empty block. Missing data or txs is not
+      // proof of emptiness: advancing would permanently skip an unsearched block.
+      if (
+        !data ||
+        typeof data !== "object" ||
+        Array.isArray(data) ||
+        !(data.txs === null || Array.isArray(data.txs))
+      )
+        return incomplete(
+          "BLOCK_DATA_UNAVAILABLE",
+          "Block transaction data missing or malformed; retry the same height and hash",
+        );
+      const txs = data.txs ?? [];
       for (let i = 0; i < txs.length; i++)
         if (hash(fromBase64(txs[i])).toUpperCase() === target) {
           const results = (await c.rpc(`block_results?height=${height}`))

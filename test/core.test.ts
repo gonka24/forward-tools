@@ -665,6 +665,63 @@ test("block scan limit returns a persistable cursor that finds the transaction o
   assert.equal(resumed.height, "102");
   assert.deepEqual(scanned, ["100", "101", "102"]);
 });
+test("incomplete block data preserves the current cursor and the transaction is found when the response recovers", async () => {
+  const bytes = Buffer.from(
+      "synthetic temporarily hidden transaction",
+    ).toString("base64"),
+    h = hash(Buffer.from(bytes, "base64"));
+  for (const badData of [undefined, null, [], {}, { txs: "malformed" }]) {
+    const c = new Chain(deployment),
+      scanned: string[] = [];
+    let recovered = false;
+    c.tip = async () => "101";
+    c.rpc = async (path) => {
+      const height = path.split("=")[1];
+      if (path.startsWith("block?")) {
+        scanned.push(height);
+        const block: any = {
+          header: { height, chain_id: deployment.chainId },
+          data: { txs: [bytes] },
+        };
+        if (!recovered) {
+          if (badData === undefined) delete block.data;
+          else block.data = badData;
+        }
+        return { result: { block } };
+      }
+      return { result: { height, txs_results: [{ code: 0 }] } };
+    };
+    const first = await confirm(c, h, "100", 10000, 1);
+    assert.equal(first.status, "INCOMPLETE");
+    assert.equal(first.code, "BLOCK_DATA_UNAVAILABLE");
+    assert.equal(first.nextHeight, "100");
+    const saved = JSON.parse(JSON.stringify(first));
+    recovered = true;
+    const resumed = await confirm(c, saved.txHash, saved.nextHeight, 10000, 1);
+    assert.equal(resumed.status, "INCLUDED");
+    assert.equal(resumed.height, "100");
+    assert.deepEqual(scanned, ["100", "100"]);
+  }
+});
+
+test("explicitly empty Tendermint transaction lists allow the scan to advance", async () => {
+  for (const txs of [null, []]) {
+    const c = new Chain(deployment);
+    c.tip = async () => "101";
+    c.rpc = async (path) => ({
+      result: {
+        block: {
+          header: { height: path.split("=")[1], chain_id: deployment.chainId },
+          data: { txs },
+        },
+      },
+    });
+    const result = await confirm(c, "a".repeat(64), "100", 10000, 1);
+    assert.equal(result.code, "SCAN_LIMIT");
+    assert.equal(result.nextHeight, "101");
+  }
+});
+
 test("deployment verification refuses runtime change before any contract checks", async () => {
   const c = new Chain(deployment, async (url) =>
     url.endsWith("/status")
