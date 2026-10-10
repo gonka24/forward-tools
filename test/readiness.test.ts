@@ -5,7 +5,7 @@ import { DirectSecp256k1Wallet } from "@cosmjs/proto-signing";
 import { toBech32, toBase64, fromBase64 } from "@cosmjs/encoding";
 import { TxRaw, SignDoc } from "cosmjs-types/cosmos/tx/v1beta1/tx";
 import { Chain } from "../src/chain.js";
-import { Operation, Deployment, Unsigned } from "../src/model.js";
+import { Operation, Deployment, Unsigned, ToolError } from "../src/model.js";
 import { readiness } from "../src/readiness.js";
 import { wire, txJson, verifySigned } from "../src/transactions.js";
 import { EXEC } from "../src/operations.js";
@@ -79,6 +79,24 @@ test("readiness distinguishes failed environment from host absence", async () =>
   assert.equal(r.environmentReady, false);
   assert.equal(r.hostVerified, false);
   assert.equal(r.status, "INCOMPLETE");
+});
+test("readiness reports an unavailable epoch window as a blocker instead of failing the report", async () => {
+  const c = chain();
+  c.currentEpoch = async () => {
+    throw new ToolError("RPC_UNAVAILABLE", "synthetic outage");
+  };
+  const r = await readiness(c, {
+    host: a,
+    signer: a,
+    price: "1",
+    budget: "10",
+    targetEpoch: 11,
+  });
+  assert.equal(r.status, "INCOMPLETE");
+  assert.ok(r.blockers.includes("RPC_UNAVAILABLE"));
+  await assert.rejects(readiness(chain(), { host: a, proofs: [{} as any] }), {
+    code: "INVALID_SIGNED",
+  });
 });
 test("owner signatures prove supported message formats without authorizing broadcast", async () => {
   const w = await DirectSecp256k1Wallet.fromKey(

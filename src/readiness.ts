@@ -45,14 +45,25 @@ export async function readiness(
       : null;
   if (!terms) blockers.push("Commercial price, budget and epoch not agreed");
   const economicPreview = terms ? economics(terms.budget, terms.price) : null;
-  if (terms && verification) {
-    const E = await c.currentEpoch();
-    if (terms.epoch <= E || terms.epoch > E + 40)
-      blockers.push("Target epoch outside future window");
-  }
+  if (terms && verification)
+    try {
+      const E = await c.currentEpoch();
+      if (terms.epoch <= E || terms.epoch > E + 40)
+        blockers.push("Target epoch outside future window");
+    } catch (e) {
+      // Like the checks above, an unavailable fact is a blocker, not a failed report.
+      blockers.push(e instanceof ToolError ? e.code : "CHECK_FAILED");
+    }
   const capabilities = new Set<string>(),
     proofs: any[] = [];
   for (const s of input.proofs ?? []) {
+    requireFact(
+      s?.schema === "gonka24/forward-signed/1" &&
+        s.unsigned?.operation &&
+        typeof s.txRaw === "string",
+      "INVALID_SIGNED",
+      "Signing proof must be a signed envelope from tx sign or tx import",
+    );
     requireFact(
       same(s.unsigned.operation.deployment, c.deployment) &&
         s.unsigned.operation.sender === input.host,

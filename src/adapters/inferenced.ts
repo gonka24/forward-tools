@@ -5,7 +5,7 @@ import { EXEC } from "../operations.js";
 import { ROUTE, CLAIM } from "../native.js";
 import { address } from "../chain.js";
 import { same } from "../chain.js";
-import { verifySigned } from "../transactions.js";
+import { validateUnsigned, verifySigned } from "../transactions.js";
 import { signedJsonBytes } from "../signed-json.js";
 import { mkdir, mkdtemp, writeFile, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -46,6 +46,7 @@ export class InferencedAdapter implements SigningAdapter {
     return address(r.stdout.trim().split(/\s+/).at(-1)!);
   }
   async sign(u: Unsigned, paths?: { unsignedTx: string; signedTx: string }) {
+    validateUnsigned(u);
     if (!paths) {
       const parent = resolve(".forward");
       await mkdir(parent, { recursive: true });

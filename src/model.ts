@@ -121,6 +121,8 @@ export const ACTIONS: Action[] = [
   "cancel",
   "forward-excess",
 ];
+/** Largest value of a protobuf/Cosmos uint64 field. */
+export const UINT64_MAX = (1n << 64n) - 1n;
 export function integer(
   value: unknown,
   name: string,
