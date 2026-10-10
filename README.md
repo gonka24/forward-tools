@@ -193,6 +193,14 @@ node dist/src/cli.js deal prepare --action release --sender CALLER_ADDRESS --dea
 
 После таймаута продолжайте подтверждение **того же хэша** из сохранённого receipt
 или результата с `nextHeight`. Не отправляйте повторно автоматически.
+При достижении лимита поиска результат также содержит `nextHeight` и
+`code: SCAN_LIMIT`. Сохраните результат через `--out`, затем передайте его как
+следующий receipt, используя новое имя выходного файла:
+
+```sh
+node dist/src/cli.js tx confirm --receipt .forward/result.local.json --out .forward/result-next.local.json
+```
+
 Если sequence изменился, сначала выясните судьбу предыдущей транзакции.
 Included failure может списать gas, но не означает выполненную операцию.
 

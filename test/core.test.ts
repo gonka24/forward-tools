@@ -490,6 +490,40 @@ test("confirmation timeout returns resume cursor without submission", async () =
   assert.equal(r.status, "INCOMPLETE");
   assert.equal(r.nextHeight, "100");
 });
+
+test("block scan limit returns a persistable cursor that finds the transaction on resume without rescanning", async () => {
+  const bytes = Buffer.from("synthetic delayed transaction").toString("base64"),
+    h = hash(Buffer.from(bytes, "base64")),
+    c = new Chain(deployment),
+    scanned: string[] = [];
+  c.tip = async () => "102";
+  c.rpc = async (path) => {
+    const height = path.split("=")[1];
+    if (path.startsWith("block?")) {
+      scanned.push(height);
+      return {
+        result: {
+          block: {
+            header: { height, chain_id: deployment.chainId },
+            data: { txs: height === "102" ? [bytes] : [] },
+          },
+        },
+      };
+    }
+    return { result: { height, txs_results: [{ code: 0 }] } };
+  };
+  const first = await confirm(c, h, "100", 10000, 2);
+  assert.equal(first.status, "INCOMPLETE");
+  assert.equal(first.code, "SCAN_LIMIT");
+  assert.equal(first.nextHeight, "102");
+  assert.deepEqual(scanned, ["100", "101"]);
+  // JSON round-trip models the saved CLI result used as the next receipt.
+  const saved = JSON.parse(JSON.stringify(first));
+  const resumed = await confirm(c, saved.txHash, saved.nextHeight, 10000, 2);
+  assert.equal(resumed.status, "INCLUDED");
+  assert.equal(resumed.height, "102");
+  assert.deepEqual(scanned, ["100", "101", "102"]);
+});
 test("deployment verification refuses runtime change before any contract checks", async () => {
   const c = new Chain(deployment, async (url) =>
     url.endsWith("/status")

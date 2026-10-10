@@ -9,6 +9,7 @@ import { Deployment, signed64, ToolError, wireUint } from "../src/model.js";
 import { CLAIM, encodeNative, decodeNative } from "../src/native.js";
 import { prepare } from "../src/operations.js";
 import { exportTx, checkFresh, wire } from "../src/transactions.js";
+import { InferencedAdapter } from "../src/adapters/inferenced.js";
 const addr = toBech32("gonka", new Uint8Array(20).fill(9));
 const contract = toBech32("gonka", new Uint8Array(32).fill(10));
 test("missing or coerced network scalars cannot become success or epoch zero", () => {
@@ -83,7 +84,7 @@ test("browser reusable core has no Node builtins or Buffer dependency", () => {
     assert.doesNotMatch(code, /from ["']node:|\bBuffer\./);
   }
 });
-test("export simulates and builds direct signing payload without any wallet executable", async () => {
+test("export simulates and builds direct signing payload without any wallet executable", async (t) => {
   const w = await DirectSecp256k1Wallet.fromKey(
       new Uint8Array(32).fill(8),
       "gonka",
@@ -118,6 +119,71 @@ test("export simulates and builds direct signing payload without any wallet exec
   assert.equal(u.signDoc?.chainId, d.chainId);
   assert.equal(u.signDoc?.accountNumber, "2");
   assert.equal(u.tx.auth_info.fee.amount[0].amount, "130");
+  await checkFresh(c, u);
+  const substitutions: [string, (x: typeof u) => void][] = [
+    [
+      "Cosmos messages",
+      (x) => {
+        x.tx.body.messages[0].msg = { cancel: {} };
+      },
+    ],
+    [
+      "Cosmos fee",
+      (x) => {
+        x.tx.auth_info.fee.amount[0].amount = "999";
+      },
+    ],
+    [
+      "direct body bytes",
+      (x) => {
+        x.signDoc!.bodyBytes = "AA==";
+      },
+    ],
+    [
+      "direct auth bytes",
+      (x) => {
+        x.signDoc!.authInfoBytes = "AA==";
+      },
+    ],
+    [
+      "direct chain",
+      (x) => {
+        x.signDoc!.chainId = "synthetic-wrong-chain";
+      },
+    ],
+    [
+      "direct account",
+      (x) => {
+        x.signDoc!.accountNumber = "99";
+      },
+    ],
+  ];
+  for (const [name, mutate] of substitutions)
+    await t.test(
+      `substituted ${name} is rejected before querying or invoking the signer`,
+      async () => {
+        const changed = structuredClone(u);
+        mutate(changed);
+        await assert.rejects(checkFresh(c, changed), {
+          code: "INVALID_UNSIGNED",
+        });
+        const adapter = new InferencedAdapter(
+          "synthetic-not-executable",
+          "synthetic-key",
+          "synthetic-home",
+          "file",
+        );
+        let signerQueries = 0;
+        adapter.getAddress = async () => {
+          signerQueries++;
+          return a.address;
+        };
+        await assert.rejects(adapter.sign(changed), {
+          code: "INVALID_UNSIGNED",
+        });
+        assert.equal(signerQueries, 0);
+      },
+    );
   const oversized = structuredClone(u);
   oversized.gas = "18446744073709551616";
   assert.throws(() => wire(oversized), /overflow/);

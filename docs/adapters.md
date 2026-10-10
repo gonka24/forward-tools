@@ -11,6 +11,10 @@ never be labelled successful simulation. It works without a wallet executable.
 
 An adapter implements `SigningAdapter`, declares SIGN_MODE_DIRECT support and
 supported type URLs, and returns a signed transaction.
+Call `validateUnsigned(unsigned)` before invoking the wallet: it binds Cosmos
+JSON and any direct SignDoc to the reviewed operation, sender, sequence and fee.
+`checkFresh` also performs this check before live revalidation. Rejecting a
+different transaction after signing cannot revoke the signature already created.
 `sign(unsigned)` returns base64 protobuf TxRaw bytes, without filesystem paths
 in the common interface. Browser wallets can consume `unsigned.signDoc` directly.
 The adapter must not alter messages, memo, sender or fees. The wallet may reject the proposed fee; in that

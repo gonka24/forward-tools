@@ -235,10 +235,9 @@ async function estimateGas(
     };
   }
 }
-export async function verifySigned(
-  u: Unsigned,
-  raw64: string,
-): Promise<Signed> {
+// Check every signer-facing representation before a wallet can create usable bytes.
+// Post-signature rejection alone cannot undo an already-created signature.
+export function validateUnsigned(u: Unsigned) {
   requireFact(
     u.schema === "gonka24/forward-unsigned/1" &&
       same(u.tx, txJson(u.operation, u.sequence, u.publicKey, u.gas, u.fee)),
@@ -256,8 +255,26 @@ export async function verifySigned(
     "SIGNER_MISMATCH",
     "Signer/fee metadata inconsistent",
   );
-  const raw = TxRaw.decode(fromBase64(raw64)),
-    expected = wire(u);
+  const expected = wire(u);
+  if (u.signDoc !== undefined)
+    requireFact(
+      same(u.signDoc, {
+        bodyBytes: toBase64(expected.bodyBytes),
+        authInfoBytes: toBase64(expected.authInfoBytes),
+        chainId: u.operation.deployment.chainId,
+        accountNumber: u.accountNumber,
+      }),
+      "INVALID_UNSIGNED",
+      "Direct signing document disagrees with operation",
+    );
+  return expected;
+}
+export async function verifySigned(
+  u: Unsigned,
+  raw64: string,
+): Promise<Signed> {
+  const expected = validateUnsigned(u),
+    raw = TxRaw.decode(fromBase64(raw64));
   requireFact(
     hash(raw.bodyBytes) === hash(expected.bodyBytes) &&
       hash(raw.authInfoBytes) === hash(expected.authInfoBytes),
@@ -297,6 +314,7 @@ export interface SigningAdapter {
   sign(unsigned: Unsigned): Promise<string>;
 }
 export async function checkFresh(c: Chain, u: Unsigned) {
+  validateUnsigned(u);
   await revalidate(c, u.operation);
   const a = await c.account(u.operation.sender);
   requireFact(
@@ -396,11 +414,16 @@ export async function confirm(
   while (Date.now() < deadline) {
     const tip = BigInt(await c.tip());
     while (height <= tip && Date.now() < deadline) {
-      requireFact(
-        height - start < BigInt(maxBlocks),
-        "SCAN_LIMIT",
-        "Resume confirmation from next height; never resubmit automatically",
-      );
+      if (height - start >= BigInt(maxBlocks))
+        return {
+          status: "INCOMPLETE",
+          code: "SCAN_LIMIT",
+          txHash,
+          fromHeight,
+          nextHeight: height.toString(),
+          reason:
+            "Block scan limit reached; continue same hash, do not resubmit",
+        };
       const b = (await c.rpc(`block?height=${height}`)).result;
       requireFact(
         b?.block?.header?.chain_id === c.deployment.chainId &&
