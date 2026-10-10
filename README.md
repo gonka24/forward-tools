@@ -4,7 +4,7 @@
 работают без кошелька. Владелец выбирает способ подписания; tools проверяет
 полученную транзакцию перед отдельной отправкой.
 
-**Статус v0.1.0: проверка перед выпуском.** Результаты конкретных проверок и
+**v0.1.0: CLI и инструкции для первого пилота.** Результаты конкретных проверок и
 ограничения опубликованы в [validation](docs/validation.md). Кошелёк не считается
 совместимым только потому, что умеет показывать GNK.
 
@@ -13,7 +13,7 @@
 Нужны Git и Node.js **24.13.0** (24 LTS). Linux/macOS или Windows/WSL:
 
 ```sh
-git clone https://github.com/gonka24/forward-tools.git
+git clone --branch v0.1.0 https://github.com/gonka24/forward-tools.git
 cd forward-tools
 npm ci --ignore-scripts
 npm test

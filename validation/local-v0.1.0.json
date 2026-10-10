@@ -1,0 +1,230 @@
+{
+  "schema": "gonka24/forward-tools-local-validation-summary/1",
+  "local_execution_only": true,
+  "acceptance": "NOT_REVIEWED",
+  "status": "PASSED",
+  "nodeVersion": "24.13.0",
+  "sourceRevisions": {
+    "runner": "06fb0bec12ff23d12c0189805ddaf82fdf26bd6b",
+    "gonka": "136041c81ea8ff38e7620d76af66a7c7fe7eec50",
+    "contracts": "4092b665c97b87f937d4c4c230870cebb038a4d8"
+  },
+  "note": "Isolated local Gonka execution with synthetic balances and keys; not mainnet transaction evidence or a new runner E2E verdict. Tools runs used the revisions recorded per operation. Final offline checks cover added uint64 guards and incomplete vesting diagnostics.",
+  "runs": [
+    {
+      "runId": "tools-terminal-release-repeat-1791582209009682322",
+      "status": "PASSED",
+      "junit": {
+        "skipped": 0,
+        "test": "marketplace terminal release repeat is rejected without payout()",
+        "tests": 1,
+        "errors": 0,
+        "failures": 0
+      },
+      "productSources": {
+        "verdict": "UNCHANGED",
+        "gonka": "136041c81ea8ff38e7620d76af66a7c7fe7eec50",
+        "contracts": "4092b665c97b87f937d4c4c230870cebb038a4d8"
+      },
+      "toolsRevisions": [
+        "86fb2a1f700a7b548331070175de94b7a5bfb2ed"
+      ],
+      "operations": [
+        {
+          "runId": "tools-terminal-release-repeat-1791582209009682322",
+          "toolsCommit": "86fb2a1f700a7b548331070175de94b7a5bfb2ed",
+          "action": "create-offer",
+          "txHash": "E644186B8BF576347BA950DB00A638F2B7DE1A9B2364B74649036A23D58D46C1",
+          "height": "104",
+          "postcondition": "RESULT_VERIFIED"
+        },
+        {
+          "runId": "tools-terminal-release-repeat-1791582209009682322",
+          "toolsCommit": "86fb2a1f700a7b548331070175de94b7a5bfb2ed",
+          "action": "route",
+          "txHash": "D2E14F732A43BFCD168B0C60B447FE54B333E085BCD421DD878EB9138982FB2F",
+          "height": "108",
+          "postcondition": "RESULT_VERIFIED"
+        },
+        {
+          "runId": "tools-terminal-release-repeat-1791582209009682322",
+          "toolsCommit": "86fb2a1f700a7b548331070175de94b7a5bfb2ed",
+          "action": "fund",
+          "txHash": "1314A935C8A711718AD306C724A5C25092E5434DE03CC69A3CCAB7C5C39F720F",
+          "height": "113",
+          "postcondition": "RESULT_VERIFIED"
+        },
+        {
+          "runId": "tools-terminal-release-repeat-1791582209009682322",
+          "toolsCommit": "86fb2a1f700a7b548331070175de94b7a5bfb2ed",
+          "action": "lock",
+          "txHash": "0943F8F3144ED81FDDEE59EE409454FEC9A803FB6853CEB58F94F992EECACC75",
+          "height": "162",
+          "postcondition": "RESULT_VERIFIED"
+        },
+        {
+          "runId": "tools-terminal-release-repeat-1791582209009682322",
+          "toolsCommit": "86fb2a1f700a7b548331070175de94b7a5bfb2ed",
+          "action": "claim",
+          "txHash": "F74515B3969F6D1151DCE904F98B6B1DFAEB2C4995421C82D0DA756F76E81A3B",
+          "height": "188",
+          "postcondition": "RESULT_VERIFIED"
+        },
+        {
+          "runId": "tools-terminal-release-repeat-1791582209009682322",
+          "toolsCommit": "86fb2a1f700a7b548331070175de94b7a5bfb2ed",
+          "action": "settle",
+          "txHash": "C2C53892E3BA1162F0EE752774822000D81D72F67D802FB906CBF55E8C0EDC68",
+          "height": "193",
+          "postcondition": "RESULT_VERIFIED"
+        },
+        {
+          "runId": "tools-terminal-release-repeat-1791582209009682322",
+          "toolsCommit": "86fb2a1f700a7b548331070175de94b7a5bfb2ed",
+          "action": "withdraw",
+          "txHash": "DB6BA892E9F14FF0290F2B1EBCDCAC1BFBF6BBBA20A41B4B07FCFC55337B7C52",
+          "height": "197",
+          "postcondition": "RESULT_VERIFIED"
+        },
+        {
+          "runId": "tools-terminal-release-repeat-1791582209009682322",
+          "toolsCommit": "86fb2a1f700a7b548331070175de94b7a5bfb2ed",
+          "action": "withdraw",
+          "txHash": "734A9671432E5B3AEC6457C2C5D63D84A60E8EDC1E50B39135D6BD42DED78578",
+          "height": "202",
+          "postcondition": "RESULT_VERIFIED"
+        },
+        {
+          "runId": "tools-terminal-release-repeat-1791582209009682322",
+          "toolsCommit": "86fb2a1f700a7b548331070175de94b7a5bfb2ed",
+          "action": "withdraw",
+          "txHash": "E3CA5AFBB73F511AB18DFE8FC3CFC4AFB15DD94B4C679F2B69BF98FC5986B65D",
+          "height": "206",
+          "postcondition": "RESULT_VERIFIED"
+        },
+        {
+          "runId": "tools-terminal-release-repeat-1791582209009682322",
+          "toolsCommit": "86fb2a1f700a7b548331070175de94b7a5bfb2ed",
+          "action": "release",
+          "txHash": "F4D4A131A38684EBBB1BCB6D589BECD2EA48D1B55A91D71909764F30E181AF68",
+          "height": "242",
+          "postcondition": "RESULT_VERIFIED"
+        }
+      ],
+      "evidenceDigests": {
+        "liveContext": "f04f824dfe1375e00b967112bd2c410231b52a8ce1b0107eb3f568b295c0a31b",
+        "junit": "4f8ddf035146db10c58a4ef646357b2f56f14f638ab0ba683f93db3a6d3e7a05",
+        "sourceImmutability": "32cfdd354abc3f5fc3ad31f4014eaa287dff68063b874533dd7951f56d934ca4"
+      }
+    },
+    {
+      "runId": "tools-claim-expiry-positive-1791582209009682322",
+      "status": "PASSED",
+      "junit": {
+        "skipped": 0,
+        "test": "marketplace positive unclaimed summary refunds only at claim expiry()",
+        "tests": 1,
+        "errors": 0,
+        "failures": 0
+      },
+      "productSources": {
+        "verdict": "UNCHANGED",
+        "gonka": "136041c81ea8ff38e7620d76af66a7c7fe7eec50",
+        "contracts": "4092b665c97b87f937d4c4c230870cebb038a4d8"
+      },
+      "toolsRevisions": [
+        "69cce113e48c2496acfd87d1bee1f60fdac5740e",
+        "de43ed640fd81d0ccb0152c982caec01b055c38c",
+        "2f31470f6b125da86bd1e0c26e4673af38e729a3"
+      ],
+      "operations": [
+        {
+          "runId": "tools-claim-expiry-positive-1791582209009682322",
+          "toolsCommit": "69cce113e48c2496acfd87d1bee1f60fdac5740e",
+          "action": "create-offer",
+          "txHash": "7D41001C8F15326A488E0DA99D6068322BB354F099050CDFA1DDE6A241C31D29",
+          "height": "104",
+          "postcondition": "RESULT_VERIFIED"
+        },
+        {
+          "runId": "tools-claim-expiry-positive-1791582209009682322",
+          "toolsCommit": "69cce113e48c2496acfd87d1bee1f60fdac5740e",
+          "action": "route",
+          "txHash": "5F4E57E56A69F6D13A0AAF66657EB56F8C17FCFFB7AA72287F0B34E2762D1658",
+          "height": "108",
+          "postcondition": "RESULT_VERIFIED"
+        },
+        {
+          "runId": "tools-claim-expiry-positive-1791582209009682322",
+          "toolsCommit": "69cce113e48c2496acfd87d1bee1f60fdac5740e",
+          "action": "fund",
+          "txHash": "790B7AA21FEA6C4E846F71287798746F9A9942B9AEA1F502E8285956D8E1B653",
+          "height": "113",
+          "postcondition": "RESULT_VERIFIED"
+        },
+        {
+          "runId": "tools-claim-expiry-positive-1791582209009682322",
+          "toolsCommit": "69cce113e48c2496acfd87d1bee1f60fdac5740e",
+          "action": "create-offer",
+          "txHash": "3C28E38E0E74F690128744B767B2EA3EA4BE349C2ED89540EDA36618E88579A2",
+          "height": "118",
+          "postcondition": "RESULT_VERIFIED"
+        },
+        {
+          "runId": "tools-claim-expiry-positive-1791582209009682322",
+          "toolsCommit": "de43ed640fd81d0ccb0152c982caec01b055c38c",
+          "action": "route",
+          "txHash": "B434A1E8504BFCD18119F74B36C77E5D90C3C00A860EB54C206C5445C14D4A84",
+          "height": "122",
+          "postcondition": "RESULT_VERIFIED"
+        },
+        {
+          "runId": "tools-claim-expiry-positive-1791582209009682322",
+          "toolsCommit": "de43ed640fd81d0ccb0152c982caec01b055c38c",
+          "action": "fund",
+          "txHash": "E72A5FA8F34121395ABBDF5E8B2CB6F71CE4C700A41BAE1BDBCFE04D4DA9A638",
+          "height": "126",
+          "postcondition": "RESULT_VERIFIED"
+        },
+        {
+          "runId": "tools-claim-expiry-positive-1791582209009682322",
+          "toolsCommit": "2f31470f6b125da86bd1e0c26e4673af38e729a3",
+          "action": "lock",
+          "txHash": "FD73B8703E49445B8F71A3E1A2D63E7BE9B6A6A851EEA859FBA43E2339B4D20C",
+          "height": "162",
+          "postcondition": "RESULT_VERIFIED"
+        },
+        {
+          "runId": "tools-claim-expiry-positive-1791582209009682322",
+          "toolsCommit": "2f31470f6b125da86bd1e0c26e4673af38e729a3",
+          "action": "refund",
+          "txHash": "EDEC530C32DE4F196FC9C0AF1BB67ECFA28073D4024F49352F941FBBB711C38F",
+          "height": "212",
+          "postcondition": "RESULT_VERIFIED"
+        }
+      ],
+      "evidenceDigests": {
+        "liveContext": "3e9f9cfa2b7a0cfaf728c4286fdec054bcf9664045ac38d55ee0f1ecf9b37097",
+        "junit": "d0dad15b1ceab017a94a95b1f338fd6dcd65ca02061d7b72dd1abe87d1475877",
+        "sourceImmutability": "91998efc83f25bd841688a081eb9749d30153d2e289d8ef23e546903f53d1511"
+      }
+    }
+  ],
+  "ownershipCleanup": "CLEAN",
+  "mainnetReadOnly": {
+    "status": "VERIFIED",
+    "deployment": "mainnet-v1",
+    "observations": [
+      {
+        "node": "https://node1.gonka.ai:8443",
+        "height": "6476721",
+        "gonkaSha": "136041c81ea8ff38e7620d76af66a7c7fe7eec50"
+      },
+      {
+        "node": "https://node2.gonka.ai:8443",
+        "height": "6476721",
+        "gonkaSha": "136041c81ea8ff38e7620d76af66a7c7fe7eec50"
+      }
+    ]
+  }
+}
