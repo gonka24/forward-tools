@@ -1,4 +1,29 @@
-# Executed validation for v0.1.0
+# Executed validation
+
+## v0.2.0 SDK working tree — 2026-10-19
+
+- Windows, Node 24.13.0: `npm test` passed **105 tests**, zero failures/skips.
+  Synthetic tests cover all three direct wire types, full uint64 account precision,
+  changed fee/message/chain/key, wallet refusal/malformed response, signer mutation,
+  initial/later persistence failure, unknown broadcast and incomplete confirmation.
+- `npm audit` reported **zero vulnerabilities** for the pinned dependencies.
+  Dependency installation/audit required normal host network access because sandbox
+  DNS/cache access failed; tests themselves were offline.
+- Independent review found no blocking correctness issues in SDK/signing flow.
+  Final integration additionally exports the SDK and rejects malformed wallet responses.
+- `npm pack` produced a local 0.2.0 archive. Its extracted package passed a separate
+  consumer TypeScript check (including rejection of caller-supplied funding amount),
+  imports of root, `/keplr`, `/inferenced`, and packaged CLI help.
+- No browser bundle, actual Keplr extension, live chain or Docker run was executed
+  for 0.2.0. Synthetic provider tests do not prove compatibility with installed
+  `@keplr-wallet/types` versions or native Gonka signing in the extension.
+  No transaction was submitted and no release was published.
+
+This evidence describes local changes based on `0e33dd1`, not a committed release.
+The previous local lifecycle receipts below remain evidence only for their recorded
+0.1.0 revisions. They are not 0.2.0 execution results.
+
+## v0.1.0 historical validation
 
 - Offline tests: **61 passed** on Windows Node 24.13.0. Linux, macOS and Windows
   CI passed for implementation revision `2f31470f6b125da86bd1e0c26e4673af38e729a3`:

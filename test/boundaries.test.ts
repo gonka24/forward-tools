@@ -80,6 +80,8 @@ test("browser reusable core has no Node builtins or Buffer dependency", () => {
     "model",
     "readiness",
     "signed-json",
+    "sdk",
+    "adapters/keplr",
   ]) {
     const code = readFileSync(
       new URL(`../../src/${file}.ts`, import.meta.url),
