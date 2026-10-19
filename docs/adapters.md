@@ -47,9 +47,10 @@ Current adapter capabilities:
 | --- | --- | --- | --- |
 | External direct secp256k1 | yes | caller provides signed bytes | Wire/signature verifier tested with synthetic signing key |
 | inferenced | yes | owner terminal, os/file keyring | Runtime validation tracked in validation.md |
-| Keplr / Leap / hardware / multisig | yes | adapter required | Not yet verified; no automatic support claim |
+| Keplr software secp256k1 | yes | `/keplr` adapter, direct signing | Synthetic tests only; Gonka extension execution not verified |
+| Leap / hardware / multisig | yes | adapter required | Not yet verified; no automatic support claim |
 
-v1 does not support Amino, multisig, Ethereum signing, authz MsgExec or wallet
+v0.2 does not support Amino, multisig, Ethereum signing, authz MsgExec or wallet
 seed import. Wallet integrations can be developed separately using the existing
 operation/export/import interfaces. Browser integration additionally needs UI,
 wallet connection, protobuf registration and chain configuration; JSON alone
@@ -58,3 +59,17 @@ does not provide it.
 For a new adapter, test address matching, all three wire types, signature binding,
 fee/memo substitution, rejection, wrong network, hardware mode limitations and
 local lifecycle execution. Declare only capabilities actually exercised.
+
+Use `ForwardClient.sign` to revalidate chain state before signing with either a
+keeper `SigningAdapter` or `KeplrAdapter`. The Keplr adapter takes an injected
+provider and chain ID; it does not read `window` on import or broadcast. It asks
+the extension to preserve fee/memo and rejects any changed SignDoc or public key.
+Keplr's uint64 `Long` account is bridged without a JavaScript Number conversion.
+Supported wire types describe encoder capability, not live wallet/network approval.
+The application configures the target chain and handles explicit connection/signing
+gestures. Hardware/Amino fallbacks and automatic chain suggestions are unsupported.
+
+Provider contract was checked against the [Keplr signing documentation](https://docs.keplr.app/api/guide/sign-a-message)
+and the published `@keplr-wallet/types` interface. `WALLET_REJECTED` is emitted only
+for an explicit rejection (code 4001 or `Request rejected`); other wallet errors
+remain `WALLET_FAILED`. Missing or malformed responses cannot establish success.

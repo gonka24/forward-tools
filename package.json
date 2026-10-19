@@ -1,6 +1,6 @@
 {
   "name": "@gonka24/forward-tools",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Wallet-independent operations and checks for Gonka Forward deals",
@@ -19,9 +19,14 @@
     "./inferenced": {
       "types": "./dist/src/adapters/inferenced.d.ts",
       "import": "./dist/src/adapters/inferenced.js"
+    },
+    "./keplr": {
+      "types": "./dist/src/adapters/keplr.d.ts",
+      "import": "./dist/src/adapters/keplr.js"
     }
   },
   "scripts": {
+    "prepack": "npm run build",
     "build": "tsc",
     "test": "npm run build && node --test dist/test/*.test.js",
     "forward": "node dist/src/cli.js"
@@ -31,11 +36,24 @@
     "@cosmjs/encoding": "0.39.0",
     "@cosmjs/proto-signing": "0.39.0",
     "cosmjs-types": "0.11.0",
-    "protobufjs": "7.6.6"
+    "protobufjs": "7.6.6",
+    "long": "5.3.2"
   },
   "devDependencies": {
     "@types/node": "24.10.1",
     "prettier": "3.6.2",
     "typescript": "5.9.3"
-  }
+  },
+  "types": "./dist/src/index.d.ts",
+  "files": [
+    "dist/src",
+    "deployments",
+    "docs",
+    "examples",
+    "provenance",
+    "validation",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ]
 }

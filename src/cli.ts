@@ -82,7 +82,7 @@ function print(value: any) {
   console.log(JSON.stringify(value, null, 2));
 }
 function help() {
-  console.log(`forward-tools 0.1.0 — wallet-independent Gonka operations
+  console.log(`forward-tools 0.2.0 — wallet-independent Gonka operations
 doctor --deployment mainnet-v1
 deployment verify --deployment mainnet-v1
 host check --host ADDRESS [--signer ADDRESS] [--out REPORT]
