@@ -122,11 +122,16 @@ function canonical(x: any): any {
         )
       : x;
 }
+export interface ChainOptions {
+  /** Skip only runtime commit equality. Other deployment checks still apply. */
+  assumeRuntimeCompatible?: boolean;
+}
 export class Chain {
   constructor(
     public deployment: Deployment,
     public fetcher: Fetcher = http,
     public base = deployment.nodes[0],
+    public options: ChainOptions = {},
   ) {}
   api(path: string, body?: any) {
     return this.fetcher(
@@ -201,6 +206,10 @@ export class Chain {
   }
   async verify() {
     const d = validateDeployment(this.deployment);
+    const assumeRuntimeCompatible =
+      this.options.assumeRuntimeCompatible ??
+      (typeof process !== "undefined" &&
+        process.env?.GONKA_FORWARD_ASSUME_RUNTIME_COMPATIBLE === "true");
     const receipts = [];
     for (const node of d.nodes) {
       const c = new Chain(d, this.fetcher, node),
@@ -208,7 +217,7 @@ export class Chain {
       const app = (await c.api("/cosmos/base/tendermint/v1beta1/node_info"))
         .application_version;
       requireFact(
-        app.git_commit === d.gonkaSha,
+        assumeRuntimeCompatible || app.git_commit === d.gonkaSha,
         "RUNTIME_CHANGED",
         "Gonka runtime differs from validated version",
       );
@@ -251,7 +260,12 @@ export class Chain {
         "TOKEN_MISMATCH",
         "Bridge origin differs",
       );
-      receipts.push({ node, height, gonkaSha: app.git_commit });
+      receipts.push({
+        node,
+        height,
+        gonkaSha: app.git_commit,
+        runtimeCompatibility: assumeRuntimeCompatible ? "ASSUMED" : "MATCHED",
+      });
     }
     return { status: "VERIFIED", deployment: d.id, observations: receipts };
   }
