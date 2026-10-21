@@ -289,11 +289,6 @@ export class Chain {
       "HOST_MISMATCH",
       "Participant identity missing or mismatched",
     );
-    requireFact(
-      p.status === "ACTIVE",
-      "HOST_NOT_COMPUTE_PARTICIPANT",
-      "Participant is not currently active",
-    );
     // weight is a legacy sentinel (-1 even for live compute hosts in this runtime).
     // An ordinary developer row is distinguished by registered hardware, not weight.
     const hardware = (await this.api(NATIVE + `hardware_nodes/${host}`)).nodes;
