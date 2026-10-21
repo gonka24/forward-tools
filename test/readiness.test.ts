@@ -194,3 +194,24 @@ test("active registered compute host identity is accepted without claiming futur
   }));
   assert.equal((await c.host(a)).weight, -1);
 });
+
+for (const status of ["INACTIVE", undefined]) {
+  test(`registered compute host is accepted with status ${status}`, async () => {
+    const participant = { index: a, weight: -1, status };
+    const nodes = {
+      participant: a,
+      hardware_nodes: [
+        { host: "synthetic.invalid", models: ["synthetic-model"] },
+      ],
+    };
+    const c = new Chain(d, async () => ({ participant, nodes }));
+    assert.equal((await c.host(a)).status, status);
+    assert.deepEqual((await c.host(a)).hardware, nodes);
+
+    participant.index = toBech32("gonka", new Uint8Array(20).fill(12));
+    await assert.rejects(c.host(a), { code: "HOST_MISMATCH" });
+    participant.index = a;
+    nodes.hardware_nodes = [];
+    await assert.rejects(c.host(a), { code: "HOST_COMPUTE_UNVERIFIED" });
+  });
+}
