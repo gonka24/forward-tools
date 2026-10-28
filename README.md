@@ -43,6 +43,16 @@ Deal code 119. Factory не имеет Wasm admin; её закреплённый
 в реестре. USDT здесь — CW20 внутри Gonka, полученный через Ethereum bridge.
 GNK нужен отдельно для комиссии сети.
 
+## Runtime compatibility
+
+Runtime commit equality checking is currently disabled. No environment variable
+or SDK option is required. Verification observations record
+`runtimeCompatibility: "NOT_CHECKED"` and the node's reported `gonkaSha`;
+a verified deployment does not establish runtime compatibility.
+RPC failures, chain identity, contract hashes/configuration, token,
+transaction and signature checks remain enforced. Registry pins remain unchanged.
+The runtime equality check is retained as a comment for future validation work.
+
 ## Я хост
 
 Кто подписывает каждую операцию и когда она доступна — в [таблице жизненного цикла](docs/lifecycle.md).

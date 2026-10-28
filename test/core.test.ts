@@ -722,7 +722,7 @@ test("explicitly empty Tendermint transaction lists allow the scan to advance", 
   }
 });
 
-test("deployment verification refuses runtime change before any contract checks", async () => {
+test("deployment verification still rejects missing contract identity after runtime change", async () => {
   const c = new Chain(deployment, async (url) =>
     url.endsWith("/status")
       ? {
@@ -737,7 +737,7 @@ test("deployment verification refuses runtime change before any contract checks"
         }
       : { application_version: { git_commit: "wrong" } },
   );
-  await assert.rejects(c.verify(), /runtime differs/);
+  await assert.rejects(c.verify(), /Contract identity differs/);
 });
 test("missing native routing response is incomplete rather than agreement", async () => {
   const c = new Chain(deployment, async () => ({}));

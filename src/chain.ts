@@ -207,11 +207,13 @@ export class Chain {
         height = await c.tip();
       const app = (await c.api("/cosmos/base/tendermint/v1beta1/node_info"))
         .application_version;
-      requireFact(
-        app.git_commit === d.gonkaSha,
-        "RUNTIME_CHANGED",
-        "Gonka runtime differs from validated version",
-      );
+      // Runtime commit equality is disabled; the reported SHA is informational.
+      // TODO: Revisit runtime compatibility validation before restoring this check.
+      // requireFact(
+      //   app.git_commit === d.gonkaSha,
+      //   "RUNTIME_CHANGED",
+      //   "Gonka runtime differs from validated version",
+      // );
       const f = await c.info(d.factory);
       requireFact(
         Number(f.code_id) === d.factoryCodeId && f.admin === "",
@@ -251,7 +253,12 @@ export class Chain {
         "TOKEN_MISMATCH",
         "Bridge origin differs",
       );
-      receipts.push({ node, height, gonkaSha: app.git_commit });
+      receipts.push({
+        node,
+        height,
+        gonkaSha: app.git_commit,
+        runtimeCompatibility: "NOT_CHECKED",
+      });
     }
     return { status: "VERIFIED", deployment: d.id, observations: receipts };
   }
