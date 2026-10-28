@@ -43,35 +43,15 @@ Deal code 119. Factory не имеет Wasm admin; её закреплённый
 в реестре. USDT здесь — CW20 внутри Gonka, полученный через Ethereum bridge.
 GNK нужен отдельно для комиссии сети.
 
-## Runtime compatibility override
+## Runtime compatibility
 
-By default, tools requires each node's reported Gonka commit to match the
-deployment registry. Set `GONKA_FORWARD_ASSUME_RUNTIME_COMPATIBLE=true` to
-assume compatibility with any runtime commit instead:
-
-```sh
-GONKA_FORWARD_ASSUME_RUNTIME_COMPATIBLE=true node dist/src/cli.js deployment verify
-```
-
-Only the exact value `true` enables this override. It skips only runtime commit
-equality: RPC failures, chain identity, contract hashes/configuration, token,
-transaction and signature checks remain enforced. Verification observations
-record `runtimeCompatibility: "ASSUMED"` and the node's reported `gonkaSha`;
-this is not evidence that the new runtime was validated. Registry pins remain
-unchanged.
-
-For browser SDK consumers, pass the build-time environment setting explicitly:
-
-```ts
-const chain = new Chain(deployment, undefined, undefined, {
-  assumeRuntimeCompatible:
-    process.env.NEXT_PUBLIC_GONKA_FORWARD_ASSUME_RUNTIME_COMPATIBLE === "true",
-});
-```
-
-The optional fourth constructor argument also works in Node. Explicit `false`
-overrides the Node environment and retains strict checking. Browsers do not
-need a `process` polyfill; applications supply the boolean via their bundler.
+Runtime commit equality checking is currently disabled. No environment variable
+or SDK option is required. Verification observations record
+`runtimeCompatibility: "NOT_CHECKED"` and the node's reported `gonkaSha`;
+a verified deployment does not establish runtime compatibility.
+RPC failures, chain identity, contract hashes/configuration, token,
+transaction and signature checks remain enforced. Registry pins remain unchanged.
+The runtime equality check is retained as a comment for future validation work.
 
 ## Я хост
 

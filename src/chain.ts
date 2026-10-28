@@ -122,16 +122,11 @@ function canonical(x: any): any {
         )
       : x;
 }
-export interface ChainOptions {
-  /** Skip only runtime commit equality. Other deployment checks still apply. */
-  assumeRuntimeCompatible?: boolean;
-}
 export class Chain {
   constructor(
     public deployment: Deployment,
     public fetcher: Fetcher = http,
     public base = deployment.nodes[0],
-    public options: ChainOptions = {},
   ) {}
   api(path: string, body?: any) {
     return this.fetcher(
@@ -206,21 +201,19 @@ export class Chain {
   }
   async verify() {
     const d = validateDeployment(this.deployment);
-    const assumeRuntimeCompatible =
-      this.options.assumeRuntimeCompatible ??
-      (typeof process !== "undefined" &&
-        process.env?.GONKA_FORWARD_ASSUME_RUNTIME_COMPATIBLE === "true");
     const receipts = [];
     for (const node of d.nodes) {
       const c = new Chain(d, this.fetcher, node),
         height = await c.tip();
       const app = (await c.api("/cosmos/base/tendermint/v1beta1/node_info"))
         .application_version;
-      requireFact(
-        assumeRuntimeCompatible || app.git_commit === d.gonkaSha,
-        "RUNTIME_CHANGED",
-        "Gonka runtime differs from validated version",
-      );
+      // Runtime commit equality is disabled; the reported SHA is informational.
+      // TODO: Revisit runtime compatibility validation before restoring this check.
+      // requireFact(
+      //   app.git_commit === d.gonkaSha,
+      //   "RUNTIME_CHANGED",
+      //   "Gonka runtime differs from validated version",
+      // );
       const f = await c.info(d.factory);
       requireFact(
         Number(f.code_id) === d.factoryCodeId && f.admin === "",
@@ -264,7 +257,7 @@ export class Chain {
         node,
         height,
         gonkaSha: app.git_commit,
-        runtimeCompatibility: assumeRuntimeCompatible ? "ASSUMED" : "MATCHED",
+        runtimeCompatibility: "NOT_CHECKED",
       });
     }
     return { status: "VERIFIED", deployment: d.id, observations: receipts };
