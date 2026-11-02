@@ -241,3 +241,13 @@ Included failure может списать gas, но не означает вы�
 Условия контрактов и проверки tools зависят от поведения Gonka и USDT.
 Отсутствие Wasm admin у Factory/Deal не устраняет управление этими зависимостями.
 Ссылки на источники и результаты — [provenance](provenance/README.md).
+
+## Prospective hosts
+
+Host eligibility verifies the on-chain participant identity but does not require
+registered compute hardware or ACTIVE status. A miner may join specifically to
+fulfil a Forward contract and register hardware later. The former hardware gate
+is retained as commented code with its rationale in `Chain.host`; no hardware
+lookup is performed. This check does not establish current compute capacity or
+guarantee future rewards. Participant lookup failures and identity mismatches
+remain blocking, as do the independent deployment, signing and operation checks.

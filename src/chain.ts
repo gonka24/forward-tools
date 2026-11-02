@@ -296,23 +296,29 @@ export class Chain {
       "HOST_MISMATCH",
       "Participant identity missing or mismatched",
     );
-    // weight is a legacy sentinel (-1 even for live compute hosts in this runtime).
-    // An ordinary developer row is distinguished by registered hardware, not weight.
-    const hardware = (await this.api(NATIVE + `hardware_nodes/${host}`)).nodes;
-    requireFact(
-      hardware?.participant === host &&
-        Array.isArray(hardware.hardware_nodes) &&
-        hardware.hardware_nodes.some(
-          (n: any) =>
-            typeof n.host === "string" &&
-            n.host.length > 0 &&
-            Array.isArray(n.models) &&
-            n.models.length > 0,
-        ),
-      "HOST_COMPUTE_UNVERIFIED",
-      "Registered compute hardware for this participant was not established",
-    );
-    p.hardware = hardware;
+    // Disabled intentionally: prospective miners may join specifically to fulfil
+    // a Forward contract and have no registered compute hardware yet. Hardware
+    // registration today is not a prerequisite for offering future rewards.
+    // Keep participant identity verification above; this does not establish
+    // present compute capacity or guarantee future earnings. Do not query hardware
+    // here: missing records or RPC errors must not reinstate this eligibility gate.
+    // // weight is a legacy sentinel (-1 even for live compute hosts in this runtime).
+    // // An ordinary developer row is distinguished by registered hardware, not weight.
+    // const hardware = (await this.api(NATIVE + `hardware_nodes/${host}`)).nodes;
+    // requireFact(
+    //   hardware?.participant === host &&
+    //     Array.isArray(hardware.hardware_nodes) &&
+    //     hardware.hardware_nodes.some(
+    //       (n: any) =>
+    //         typeof n.host === "string" &&
+    //         n.host.length > 0 &&
+    //         Array.isArray(n.models) &&
+    //         n.models.length > 0,
+    //     ),
+    //   "HOST_COMPUTE_UNVERIFIED",
+    //   "Registered compute hardware for this participant was not established",
+    // );
+    // p.hardware = hardware;
     return p;
   }
   async balance(a: string) {
