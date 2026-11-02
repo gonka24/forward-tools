@@ -164,7 +164,7 @@ test("owner signatures prove supported message formats without authorizing broad
   assert.doesNotMatch(JSON.stringify(r), /keyring|\/home\//);
   await assert.rejects(readiness(chain(), { host: a, proofs }), /belong/);
 });
-test("developer participant row does not establish a compute host", async () => {
+test("prospective miner without registered hardware can use its participant identity", async () => {
   const c = new Chain(d, async () => ({
     participant: {
       index: a,
@@ -174,7 +174,7 @@ test("developer participant row does not establish a compute host", async () => 
       inference_url: "",
     },
   }));
-  await assert.rejects(c.host(a), /Registered compute hardware/);
+  assert.equal((await c.host(a)).index, a);
 });
 test("active registered compute host identity is accepted without claiming future earnings", async () => {
   const c = new Chain(d, async () => ({
@@ -206,12 +206,23 @@ for (const status of ["INACTIVE", undefined]) {
     };
     const c = new Chain(d, async () => ({ participant, nodes }));
     assert.equal((await c.host(a)).status, status);
-    assert.deepEqual((await c.host(a)).hardware, nodes);
+    assert.equal((await c.host(a)).hardware, undefined);
 
     participant.index = toBech32("gonka", new Uint8Array(20).fill(12));
     await assert.rejects(c.host(a), { code: "HOST_MISMATCH" });
     participant.index = a;
     nodes.hardware_nodes = [];
-    await assert.rejects(c.host(a), { code: "HOST_COMPUTE_UNVERIFIED" });
+    assert.equal((await c.host(a)).index, a);
   });
 }
+
+test("host eligibility does not call hardware endpoint, even when it would fail", async () => {
+  const paths: string[] = [];
+  const c = new Chain(d, async (url) => {
+    paths.push(String(url));
+    assert.ok(!String(url).includes("hardware_nodes"));
+    return { participant: { index: a, status: "INACTIVE" } };
+  });
+  assert.equal((await c.host(a)).index, a);
+  assert.equal(paths.length, 1);
+});
